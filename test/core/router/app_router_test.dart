@@ -47,6 +47,10 @@ void main() {
         AppRoutes.setup,
       );
       expect(await redirectIfNotConfigured(AppRoutes.newNote), AppRoutes.setup);
+      expect(
+        await redirectIfNotConfigured(AppRoutes.settings),
+        AppRoutes.setup,
+      );
     });
 
     test('does not redirect once a vault is configured', () async {

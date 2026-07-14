@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../features/sync/presentation/widgets/sync_status_indicator.dart';
+import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 
 /// One destination of the shell navigation.
@@ -24,7 +26,7 @@ const List<_Destination> _destinations = [
 /// Compact widths (< 840 dp) get a bottom [NavigationBar]; expanded widths
 /// (>= 840 dp, per [Breakpoints]) get a [NavigationRail] that extends while
 /// hovered. A common [AppBar] shows the section title, the git sync status
-/// and a (not yet wired) settings button.
+/// and a settings button opening the `/settings` screen.
 class AdaptiveScaffold extends StatefulWidget {
   const AdaptiveScaffold({
     super.key,
@@ -120,8 +122,7 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
         ...widget.appBarActions ?? const [SyncStatusIndicator()],
         IconButton(
           tooltip: 'Réglages',
-          // Settings screen not wired yet, the button stays disabled.
-          onPressed: null,
+          onPressed: () => context.push(AppRoutes.settings),
           icon: const Icon(Icons.settings_outlined),
         ),
       ],

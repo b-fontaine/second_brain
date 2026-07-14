@@ -38,6 +38,10 @@ class GitSyncRepositoryImpl implements GitSyncRepository {
 
   static const tokenKey = 'git_token';
   static const _noVaultMessage = 'Aucun vault configuré';
+  static const _noRemoteMessage =
+      'Aucun dépôt distant configuré pour ce coffre';
+  static const _noTokenMessage = 'Aucun jeton d\'accès enregistré';
+  static const _emptyTokenMessage = 'Le jeton d\'accès ne peut pas être vide';
 
   final GitClient _git;
   final VaultLocator _vaultLocator;
@@ -159,6 +163,68 @@ class GitSyncRepositoryImpl implements GitSyncRepository {
     } on GitException catch (e) {
       _emitError(e.message);
       return Left(SyncFailure(e.message));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> testRemoteConnection({
+    String? tokenOverride,
+  }) async {
+    // Diagnostic only: never emit on the status stream, the vault state
+    // has not changed.
+    final path = await _vaultLocator.vaultPath();
+    if (path == null) return const Left(SyncFailure(_noVaultMessage));
+    try {
+      if (!await _git.isRepository(path) || !await _git.hasRemote(path)) {
+        return const Left(SyncFailure(_noRemoteMessage));
+      }
+      if (!await _networkInfo.isConnected) {
+        return const Left(OfflineFailure());
+      }
+      final token = tokenOverride ?? await _secureStorage.read(key: tokenKey);
+      if (token == null || token.trim().isEmpty) {
+        return const Left(SyncFailure(_noTokenMessage));
+      }
+      await _git.fetch(path: path, token: token.trim());
+      return const Right(unit);
+    } on GitException catch (e) {
+      return Left(
+        SyncFailure('Jeton refusé par le dépôt distant : ${e.message}'),
+      );
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> updateToken(String token) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) {
+      return const Left(ValidationFailure(_emptyTokenMessage));
+    }
+    final test = await testRemoteConnection(tokenOverride: trimmed);
+    return test.fold<Future<Either<Failure, Unit>>>(
+      (failure) async => Left(failure),
+      (_) async {
+        // Persist ONLY once the candidate token proved it can reach the
+        // remote; a failing test leaves the previous token untouched.
+        try {
+          await _secureStorage.write(key: tokenKey, value: trimmed);
+          return const Right(unit);
+        } on Exception catch (e) {
+          return Left(
+            SyncFailure('Impossible d\'enregistrer le jeton d\'accès : $e'),
+          );
+        }
+      },
+    );
+  }
+
+  @override
+  Future<Either<Failure, bool>> hasStoredToken() async {
+    try {
+      final token = await _secureStorage.read(key: tokenKey);
+      return Right(token != null && token.isNotEmpty);
+    } on Exception catch (e) {
+      return Left(SyncFailure('Impossible de lire le jeton d\'accès : $e'));
     }
   }
 

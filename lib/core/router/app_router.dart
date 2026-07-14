@@ -6,6 +6,7 @@ import '../../features/capture/presentation/pages/capture_page.dart';
 import '../../features/graph/presentation/pages/graph_page.dart';
 import '../../features/setup/domain/repositories/setup_repository.dart';
 import '../../features/setup/presentation/pages/setup_page.dart';
+import '../../features/sync/presentation/pages/settings_page.dart';
 import '../../features/zettel/presentation/pages/notes_home_page.dart';
 import '../../features/zettel/presentation/pages/zettel_detail_page.dart';
 import '../../features/zettel/presentation/pages/zettel_edit_page.dart';
@@ -22,6 +23,7 @@ abstract final class AppRoutes {
   static const graph = '/graph';
   static const setup = '/setup';
   static const newNote = '/new';
+  static const settings = '/settings';
 
   static String noteDetail(String id) => '/note/$id';
 
@@ -68,6 +70,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.newNote,
       builder: (context, state) => const ZettelEditPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.settings,
+      builder: (context, state) => const SettingsPage(),
     ),
     GoRoute(
       path: '/note/:id',

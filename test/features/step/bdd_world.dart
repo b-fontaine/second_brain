@@ -56,7 +56,10 @@ import 'package:second_brain/features/sync/data/services/pull_change_notifier.da
 import 'package:second_brain/features/sync/domain/repositories/git_sync_repository.dart';
 import 'package:second_brain/features/sync/domain/usecases/force_synchronize.dart';
 import 'package:second_brain/features/sync/domain/usecases/get_sync_status.dart';
+import 'package:second_brain/features/sync/domain/usecases/test_remote_connection.dart';
+import 'package:second_brain/features/sync/domain/usecases/update_git_token.dart';
 import 'package:second_brain/features/sync/domain/usecases/watch_sync_status.dart';
+import 'package:second_brain/features/sync/presentation/bloc/settings_cubit.dart';
 import 'package:second_brain/features/sync/presentation/bloc/sync_status_cubit.dart';
 import 'package:second_brain/features/zettel/data/datasources/vault_data_source.dart'
     show VaultDataSource;
@@ -437,6 +440,22 @@ void _registerDependencies() {
     )
     ..registerFactory<WatchSyncStatus>(
       () => WatchSyncStatus(getIt<GitSyncRepository>()),
+    )
+    ..registerFactory<TestRemoteConnection>(
+      () => TestRemoteConnection(getIt<GitSyncRepository>()),
+    )
+    ..registerFactory<UpdateGitToken>(
+      () => UpdateGitToken(getIt<GitSyncRepository>()),
+    )
+    ..registerFactory<SettingsCubit>(
+      () => SettingsCubit(
+        getIt<GetVaultConfig>(),
+        getIt<GetSyncStatus>(),
+        getIt<TestRemoteConnection>(),
+        getIt<UpdateGitToken>(),
+        getIt<ForceSynchronize>(),
+        getIt<GitSyncRepository>(),
+      ),
     )
     ..registerFactory<SyncStatusCubit>(
       () => SyncStatusCubit(

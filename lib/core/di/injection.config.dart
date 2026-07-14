@@ -90,7 +90,11 @@ import '../../features/sync/domain/repositories/git_sync_repository.dart'
     as _i22;
 import '../../features/sync/domain/usecases/force_synchronize.dart' as _i376;
 import '../../features/sync/domain/usecases/get_sync_status.dart' as _i397;
+import '../../features/sync/domain/usecases/test_remote_connection.dart'
+    as _i208;
+import '../../features/sync/domain/usecases/update_git_token.dart' as _i719;
 import '../../features/sync/domain/usecases/watch_sync_status.dart' as _i207;
+import '../../features/sync/presentation/bloc/settings_cubit.dart' as _i775;
 import '../../features/sync/presentation/bloc/sync_status_cubit.dart' as _i690;
 import '../../features/zettel/data/datasources/vault_data_source.dart' as _i342;
 import '../../features/zettel/data/repositories/inbox_repository_impl.dart'
@@ -322,6 +326,12 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i397.GetSyncStatus>(
       () => _i397.GetSyncStatus(gh<_i22.GitSyncRepository>()),
     );
+    gh.factory<_i208.TestRemoteConnection>(
+      () => _i208.TestRemoteConnection(gh<_i22.GitSyncRepository>()),
+    );
+    gh.factory<_i719.UpdateGitToken>(
+      () => _i719.UpdateGitToken(gh<_i22.GitSyncRepository>()),
+    );
     gh.factory<_i207.WatchSyncStatus>(
       () => _i207.WatchSyncStatus(gh<_i22.GitSyncRepository>()),
     );
@@ -396,6 +406,16 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i791.SetupBloc(
         gh<_i828.ConfigureWithRemote>(),
         gh<_i34.ConfigureLocalOnly>(),
+      ),
+    );
+    gh.factory<_i775.SettingsCubit>(
+      () => _i775.SettingsCubit(
+        gh<_i109.GetVaultConfig>(),
+        gh<_i397.GetSyncStatus>(),
+        gh<_i208.TestRemoteConnection>(),
+        gh<_i719.UpdateGitToken>(),
+        gh<_i376.ForceSynchronize>(),
+        gh<_i22.GitSyncRepository>(),
       ),
     );
     return this;

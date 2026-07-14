@@ -106,13 +106,15 @@ void main() {
       );
     });
 
-    testWidgets('shows a disabled settings button', (tester) async {
+    testWidgets('shows an enabled settings button', (tester) async {
       await tester.pumpWidget(buildSubject(width: 500));
 
       final button = tester.widget<IconButton>(
         find.widgetWithIcon(IconButton, Icons.settings_outlined),
       );
-      expect(button.onPressed, isNull);
+      // Wired to `context.push('/settings')`; navigation itself is
+      // covered by the settings BDD suite (real router).
+      expect(button.onPressed, isNotNull);
       expect(button.tooltip, 'Réglages');
     });
   });

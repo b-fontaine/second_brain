@@ -20,6 +20,10 @@ import 'package:second_brain/features/sync/domain/repositories/git_sync_reposito
 ///   [FakeNetworkInfo]-backed [NetworkInfo] says offline).
 /// - Force outcomes with [cloneFailure] / [synchronizeFailure], or push an
 ///   arbitrary status with [setStatus].
+/// - Token management: [storedToken] is the "secure storage" content
+///   ([cloneRemote] and a successful [updateToken] fill it). Add a token to
+///   [rejectedTokens] to make [testRemoteConnection]/[updateToken] refuse
+///   it; every [updateToken] call is traced in [updateTokenCalls].
 class FakeGitSyncRepository implements GitSyncRepository {
   FakeGitSyncRepository(this._vaultLocator, this._networkInfo);
 
@@ -42,6 +46,16 @@ class FakeGitSyncRepository implements GitSyncRepository {
 
   /// When non-null, every [synchronize] fails with this failure.
   Failure? synchronizeFailure;
+
+  /// In-memory stand-in for the secure storage `git_token` entry.
+  String? storedToken;
+
+  /// Tokens the fake remote refuses (message
+  /// 'Jeton refusé par le dépôt distant').
+  final Set<String> rejectedTokens = {};
+
+  /// Every raw token passed to [updateToken], in call order.
+  final List<String> updateTokenCalls = [];
 
   SyncStatus _status = const SyncStatus(state: SyncState.localOnly);
 
@@ -69,6 +83,7 @@ class FakeGitSyncRepository implements GitSyncRepository {
       cloneFailure = null;
       return Left(failure);
     }
+    storedToken = token;
     await _createVaultStructure();
     remoteConfigured = true;
     setStatus(const SyncStatus(state: SyncState.upToDate));
@@ -127,6 +142,50 @@ class FakeGitSyncRepository implements GitSyncRepository {
     );
     return const Right(unit);
   }
+
+  @override
+  Future<Either<Failure, Unit>> testRemoteConnection({
+    String? tokenOverride,
+  }) async {
+    if (!remoteConfigured) {
+      return const Left(
+        SyncFailure('Aucun dépôt distant configuré pour ce coffre'),
+      );
+    }
+    if (!await _networkInfo.isConnected) {
+      return const Left(OfflineFailure());
+    }
+    final candidate = tokenOverride ?? storedToken;
+    if (candidate == null || candidate.trim().isEmpty) {
+      return const Left(SyncFailure('Aucun jeton d\'accès enregistré'));
+    }
+    if (rejectedTokens.contains(candidate.trim())) {
+      return const Left(SyncFailure('Jeton refusé par le dépôt distant'));
+    }
+    return const Right(unit);
+  }
+
+  @override
+  Future<Either<Failure, Unit>> updateToken(String token) async {
+    updateTokenCalls.add(token);
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) {
+      return const Left(
+        ValidationFailure('Le jeton d\'accès ne peut pas être vide'),
+      );
+    }
+    final test = await testRemoteConnection(tokenOverride: trimmed);
+    return test.fold(Left.new, (_) {
+      // Same contract as the real implementation: persist only after a
+      // successful connection test.
+      storedToken = trimmed;
+      return const Right(unit);
+    });
+  }
+
+  @override
+  Future<Either<Failure, bool>> hasStoredToken() async =>
+      Right(storedToken != null && storedToken!.isNotEmpty);
 
   @override
   Future<Either<Failure, SyncStatus>> getStatus() async => Right(_status);

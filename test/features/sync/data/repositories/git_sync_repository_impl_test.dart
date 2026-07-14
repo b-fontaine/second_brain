@@ -463,4 +463,227 @@ void main() {
       expect(status.state, SyncState.localOnly);
     });
   });
+
+  group('testRemoteConnection', () {
+    setUp(() {
+      when(
+        () => git.fetch(path: vaultPath, token: any(named: 'token')),
+      ).thenAnswer((_) async {});
+    });
+
+    test('fetches with the stored token when no override is given', () async {
+      final result = await repository.testRemoteConnection();
+
+      expect(result, const Right<Failure, Unit>(unit));
+      verify(() => git.fetch(path: vaultPath, token: token)).called(1);
+    });
+
+    test(
+      'fetches with the trimmed candidate token without reading storage',
+      () async {
+        final result = await repository.testRemoteConnection(
+          tokenOverride: '  candidate  ',
+        );
+
+        expect(result, const Right<Failure, Unit>(unit));
+        verify(() => git.fetch(path: vaultPath, token: 'candidate')).called(1);
+        verifyNever(() => secureStorage.read(key: any(named: 'key')));
+      },
+    );
+
+    test('fails when no vault is configured', () async {
+      when(() => vaultLocator.vaultPath()).thenAnswer((_) async => null);
+
+      final result = await repository.testRemoteConnection();
+
+      expect(
+        result,
+        const Left<Failure, Unit>(SyncFailure('Aucun vault configuré')),
+      );
+    });
+
+    test('fails when the vault has no remote, without fetching', () async {
+      when(() => git.hasRemote(vaultPath)).thenAnswer((_) async => false);
+
+      final result = await repository.testRemoteConnection();
+
+      expect(
+        result,
+        const Left<Failure, Unit>(
+          SyncFailure('Aucun dépôt distant configuré pour ce coffre'),
+        ),
+      );
+      verifyNever(
+        () => git.fetch(path: vaultPath, token: any(named: 'token')),
+      );
+    });
+
+    test('returns OfflineFailure when offline, without fetching', () async {
+      when(() => networkInfo.isConnected).thenAnswer((_) async => false);
+
+      final result = await repository.testRemoteConnection();
+
+      expect(result, const Left<Failure, Unit>(OfflineFailure()));
+      verifyNever(
+        () => git.fetch(path: vaultPath, token: any(named: 'token')),
+      );
+    });
+
+    test('fails when no token is stored and none is provided', () async {
+      when(
+        () => secureStorage.read(key: GitSyncRepositoryImpl.tokenKey),
+      ).thenAnswer((_) async => null);
+
+      final result = await repository.testRemoteConnection();
+
+      expect(
+        result,
+        const Left<Failure, Unit>(
+          SyncFailure('Aucun jeton d\'accès enregistré'),
+        ),
+      );
+    });
+
+    test('maps a fetch error to a token-refused SyncFailure', () async {
+      when(
+        () => git.fetch(path: vaultPath, token: any(named: 'token')),
+      ).thenThrow(const GitException('authentification requise'));
+
+      final result = await repository.testRemoteConnection(
+        tokenOverride: 'expired',
+      );
+
+      result.fold(
+        (failure) => expect(
+          failure.message,
+          'Jeton refusé par le dépôt distant : authentification requise',
+        ),
+        (_) => fail('expected a failure'),
+      );
+    });
+
+    test('never emits on the status stream (diagnostic only)', () async {
+      final emitted = <SyncStatus>[];
+      final subscription = repository.watchStatus().listen(emitted.add);
+      await Future<void>.delayed(Duration.zero);
+      final replayCount = emitted.length;
+
+      await repository.testRemoteConnection();
+      when(
+        () => git.fetch(path: vaultPath, token: any(named: 'token')),
+      ).thenThrow(const GitException('boom'));
+      await repository.testRemoteConnection();
+      await Future<void>.delayed(Duration.zero);
+      await subscription.cancel();
+
+      expect(emitted.length, replayCount);
+    });
+  });
+
+  group('updateToken', () {
+    setUp(() {
+      when(
+        () => git.fetch(path: vaultPath, token: any(named: 'token')),
+      ).thenAnswer((_) async {});
+      when(
+        () => secureStorage.write(
+          key: GitSyncRepositoryImpl.tokenKey,
+          value: any(named: 'value'),
+        ),
+      ).thenAnswer((_) async {});
+    });
+
+    test('rejects a blank token without any git or storage call', () async {
+      final result = await repository.updateToken('   ');
+
+      expect(
+        result,
+        const Left<Failure, Unit>(
+          ValidationFailure('Le jeton d\'accès ne peut pas être vide'),
+        ),
+      );
+      verifyNever(
+        () => git.fetch(path: vaultPath, token: any(named: 'token')),
+      );
+      verifyNever(
+        () => secureStorage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      );
+    });
+
+    test('persists the trimmed token only after a successful test', () async {
+      final result = await repository.updateToken('  new-pat  ');
+
+      expect(result, const Right<Failure, Unit>(unit));
+      verifyInOrder([
+        () => git.fetch(path: vaultPath, token: 'new-pat'),
+        () => secureStorage.write(
+          key: GitSyncRepositoryImpl.tokenKey,
+          value: 'new-pat',
+        ),
+      ]);
+    });
+
+    test('persists nothing when the connection test fails', () async {
+      when(
+        () => git.fetch(path: vaultPath, token: any(named: 'token')),
+      ).thenThrow(const GitException('authentification requise'));
+
+      final result = await repository.updateToken('bad-pat');
+
+      expect(result.isLeft(), isTrue);
+      verifyNever(
+        () => secureStorage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      );
+    });
+
+    test('maps a storage write error to a SyncFailure', () async {
+      when(
+        () => secureStorage.write(
+          key: GitSyncRepositoryImpl.tokenKey,
+          value: any(named: 'value'),
+        ),
+      ).thenThrow(Exception('keychain indisponible'));
+
+      final result = await repository.updateToken('new-pat');
+
+      result.fold(
+        (failure) => expect(failure, isA<SyncFailure>()),
+        (_) => fail('expected a failure'),
+      );
+    });
+  });
+
+  group('hasStoredToken', () {
+    test('is true when a non-empty token is stored', () async {
+      final result = await repository.hasStoredToken();
+
+      expect(result, const Right<Failure, bool>(true));
+    });
+
+    test('is false when no token is stored', () async {
+      when(
+        () => secureStorage.read(key: GitSyncRepositoryImpl.tokenKey),
+      ).thenAnswer((_) async => null);
+
+      final result = await repository.hasStoredToken();
+
+      expect(result, const Right<Failure, bool>(false));
+    });
+
+    test('is false when the stored token is empty', () async {
+      when(
+        () => secureStorage.read(key: GitSyncRepositoryImpl.tokenKey),
+      ).thenAnswer((_) async => '');
+
+      final result = await repository.hasStoredToken();
+
+      expect(result, const Right<Failure, bool>(false));
+    });
+  });
 }
