@@ -1,0 +1,26 @@
+Feature: Molecular graph visualization of the zettelkasten
+  As a knowledge worker
+  I want a force-directed graph of my notes and their links
+  So that I can explore my knowledge visually
+
+  Background:
+    Given the app is running with a configured vault
+    And a zettel titled {'Concept A'} exists
+    And a zettel titled {'Concept B'} exists
+    And the zettel {'Concept A'} links to {'Concept B'}
+
+  Scenario: The graph shows one node per zettel and edges for links
+    When I open the graph view
+    Then the graph contains {2} nodes
+    And the graph contains {1} edge
+
+  Scenario: Selecting a node opens the reading panel
+    When I open the graph view
+    And I select the graph node {'Concept A'}
+    Then I see the note reading panel with title {'Concept A'}
+    And the node {'Concept A'} is highlighted
+
+  Scenario: The graph supports pan and zoom
+    When I open the graph view
+    And I zoom into the graph
+    Then the graph viewport scale increases
