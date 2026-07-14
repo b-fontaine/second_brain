@@ -63,9 +63,11 @@ class WhisperModelPaths {
 // The GitHub k2-fsa release assets (tag `asr-models`) are tar.bz2 archives,
 // but package:archive is not available in this project's dependency tree.
 // We therefore download the same files individually from the k2-fsa
-// HuggingFace mirrors (csukuangfj), which expose them non-archived.
+// HuggingFace mirrors, which expose them non-archived. Note: the French
+// zipformer lives under `shaojieli` (csukuangfj does not mirror it and
+// returns 401); every URL below verified live on 2026-07-15.
 const _zipformerFrBase =
-    'https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-fr-2023-04-14/resolve/main';
+    'https://huggingface.co/shaojieli/sherpa-onnx-streaming-zipformer-fr-2023-04-14/resolve/main';
 const _whisperSmallBase =
     'https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/main';
 const _whisperTinyBase =
