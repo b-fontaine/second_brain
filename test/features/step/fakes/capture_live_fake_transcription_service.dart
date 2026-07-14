@@ -13,10 +13,11 @@ import 'fake_transcription_service.dart';
 /// live controller: [startDictation] first replays [scriptedSegments], then
 /// [emitSegment] delivers live segments until [stopDictation] closes it.
 ///
-/// Installed by the step "I tap the capture button", which reassigns the
-/// world's `fakeTranscriptionService` BEFORE the capture page — and thus the
-/// `TranscriptionService` lazy singleton — is instantiated (the DI factory
-/// closure in `bdd_world.dart` reads the global at instantiation time).
+/// Installed by the step "I tap the seed button", which reassigns the
+/// world's `fakeTranscriptionService` BEFORE a dial chip pushes the capture
+/// flow — and thus before the `TranscriptionService` lazy singleton is
+/// instantiated (the DI factory closure in `bdd_world.dart` reads the
+/// global at instantiation time).
 class CaptureLiveFakeTranscriptionService extends FakeTranscriptionService {
   /// Copies the scripting knobs of [previous] so Background steps that
   /// configured the original fake (e.g. "the local transcription engine is

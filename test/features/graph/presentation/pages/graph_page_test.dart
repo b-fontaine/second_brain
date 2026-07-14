@@ -51,7 +51,9 @@ void main() {
   ) async {
     await pumpLoadedGraph(tester);
 
-    // The AdaptiveScaffold shell provides the only AppBar of the tab.
+    // The page never carried a local AppBar (its actions live in the
+    // overlay). Jalon A: no longer routed as a tab; chantier 2 merges the
+    // constellation into the Explorer surface, which keeps that constraint.
     expect(find.byType(AppBar), findsNothing);
     expect(find.text('2 notes · 1 lien'), findsOneWidget);
     expect(find.byTooltip('Recentrer'), findsOneWidget);

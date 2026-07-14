@@ -1,21 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'i_tap_the_capture_button.dart';
+import 'i_choose_to_paste.dart';
+import 'i_tap_the_seed_button.dart';
 
 /// Usage: I run the capture assistant on the clipboard content
 ///
-/// Full user journey: open the Capturer tab, import the clipboard content,
-/// then hand the extracted text over to the assistant.
+/// Full user journey: open the seed dial, paste the clipboard content
+/// through the « Coller » chip, then hand the extracted text over to the
+/// assistant.
 Future<void> iRunTheCaptureAssistantOnTheClipboardContent(
   WidgetTester tester,
 ) async {
-  await iTapTheCaptureButton(tester);
-
-  final card = find.text('Presse-papiers');
-  await tester.ensureVisible(card);
-  await tester.pumpAndSettle();
-  await tester.tap(card);
-  await tester.pumpAndSettle();
+  await iTapTheSeedButton(tester);
+  await iChooseToPaste(tester);
 
   final organize = find.text('Organiser avec l’assistant');
   expect(

@@ -4,18 +4,22 @@ import 'package:second_brain/features/capture/presentation/widgets/extracted_tex
 
 import 'bdd_world.dart';
 import 'fakes/capture_live_fake_transcription_service.dart';
-import 'i_tap_the_capture_button.dart';
+import 'i_choose_to_dictate.dart';
+import 'i_tap_the_seed_button.dart';
 
 /// Usage: a dictated transcript about {'la revue de code'}
 ///
-/// Runs a whole (fake) dictation about the topic — start, one final
-/// utterance, stop — landing on the transcript review screen.
+/// Runs a whole (fake) dictation about the topic — seed dial, « Dicter »
+/// chip, one final utterance, stop — landing on the transcript review
+/// screen.
 Future<void> aDictatedTranscriptAbout(
   WidgetTester tester,
   String param1,
 ) async {
-  await iTapTheCaptureButton(tester);
+  await iTapTheSeedButton(tester);
 
+  // Scripted before the chip tap: the dictation starts as soon as the
+  // capture flow is pushed, replaying these segments.
   fakeTranscriptionService.scriptedSegments = [
     DictationSegment(
       'Réflexion dictée à propos de $param1 avec quelques pistes '
@@ -24,11 +28,7 @@ Future<void> aDictatedTranscriptAbout(
     ),
   ];
 
-  final card = find.text('Dictée');
-  await tester.ensureVisible(card);
-  await tester.pumpAndSettle();
-  await tester.tap(card);
-  await tester.pumpAndSettle();
+  await iChooseToDictate(tester);
 
   // Let the microphone stream end, then stop. The bloc's stop handler
   // awaits an async* subscription cancel that only completes on the REAL

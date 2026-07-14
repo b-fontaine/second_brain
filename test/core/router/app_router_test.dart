@@ -29,7 +29,7 @@ void main() {
         () => repository.getConfig(),
       ).thenAnswer((_) async => const Right(null));
 
-      final location = await redirectIfNotConfigured(AppRoutes.notes);
+      final location = await redirectIfNotConfigured(AppRoutes.explorer);
 
       expect(location, AppRoutes.setup);
     });
@@ -58,7 +58,7 @@ void main() {
         (_) async => const Right(VaultConfig(vaultPath: '/tmp/vault')),
       );
 
-      expect(await redirectIfNotConfigured(AppRoutes.notes), isNull);
+      expect(await redirectIfNotConfigured(AppRoutes.explorer), isNull);
       expect(await redirectIfNotConfigured('/note/20260714103000'), isNull);
     });
 
@@ -75,7 +75,7 @@ void main() {
         () => repository.getConfig(),
       ).thenAnswer((_) async => const Left(VaultFailure('lecture impossible')));
 
-      final location = await redirectIfNotConfigured(AppRoutes.notes);
+      final location = await redirectIfNotConfigured(AppRoutes.explorer);
 
       expect(location, AppRoutes.setup);
     });
@@ -87,8 +87,10 @@ void main() {
       expect(AppRoutes.noteEdit('20260714103000'), '/note/20260714103000/edit');
     });
 
-    test('exposes the four shell tabs in destination order', () {
-      expect(shellTabPaths, ['/', '/capture', '/chat', '/graph']);
+    test('exposes the two shell tabs indexed by tab index', () {
+      // Jalon A: « 2 + 1 » navigation. /capture and /graph are no longer
+      // tabs; they redirect to Explorer (with the dial for /capture).
+      expect(shellTabPaths, ['/', '/chat']);
     });
   });
 
@@ -102,7 +104,7 @@ void main() {
         errorBuilder: (context, state) => const RouteNotFoundPage(),
         routes: [
           GoRoute(
-            path: AppRoutes.notes,
+            path: AppRoutes.explorer,
             builder: (context, state) => const Scaffold(body: Text('accueil')),
           ),
         ],

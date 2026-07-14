@@ -9,9 +9,8 @@ Feature: Dictation capture with live transcription
     And the local transcription engine is available
 
   Scenario: Dictating produces a live transcript
-    When I tap the capture button
-    And I choose the dictation capture mode
-    And I start dictating
+    When I tap the seed button
+    And I choose to dictate
     And I speak {'ceci est une note dictée'}
     And I stop dictating
     Then the transcript contains {'ceci est une note dictée'}

@@ -6,8 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import './step/the_app_is_running_with_a_configured_vault.dart';
 import './step/the_local_ai_model_is_available.dart';
-import './step/i_tap_the_capture_button.dart';
-import './step/i_choose_the_clipboard_capture_mode.dart';
+import './step/i_tap_the_seed_button.dart';
+import './step/i_choose_to_paste.dart';
 import './step/the_clipboard_content_is_shown_as_capture_source.dart';
 import './step/the_clipboard_contains_a_long_article_about.dart';
 import './step/i_run_the_capture_assistant_on_the_clipboard_content.dart';
@@ -28,31 +28,25 @@ void main() {
 
     testWidgets('''Pasting text opens the capture assistant''', (tester) async {
       await bddSetUp(tester);
-      await iTapTheCaptureButton(tester);
-      await iChooseTheClipboardCaptureMode(tester);
+      await iTapTheSeedButton(tester);
+      await iChooseToPaste(tester);
       await theClipboardContentIsShownAsCaptureSource(tester);
     });
-    testWidgets('''The assistant proposes atomic zettels from pasted text''', (
-      tester,
-    ) async {
+    testWidgets('''The assistant proposes atomic zettels from pasted text''',
+        (tester) async {
       await bddSetUp(tester);
       await theClipboardContainsALongArticleAbout(
-        tester,
-        'la mémoire de travail',
-      );
+          tester, 'la mémoire de travail');
       await iRunTheCaptureAssistantOnTheClipboardContent(tester);
       await theAssistantProposesAtLeastZettelDraft(tester, 1);
       await eachDraftHasATitleABodyAndSuggestedTags(tester);
       await eachDraftSuggestsLinksToExistingRelatedZettels(tester);
     });
-    testWidgets('''Accepting a draft saves it to the zettelkasten''', (
-      tester,
-    ) async {
+    testWidgets('''Accepting a draft saves it to the zettelkasten''',
+        (tester) async {
       await bddSetUp(tester);
       await theCaptureAssistantProposedADraftTitled(
-        tester,
-        'Mémoire de travail',
-      );
+          tester, 'Mémoire de travail');
       await iAcceptTheDraft(tester);
       await aZettelExistsWithTitle(tester, 'Mémoire de travail');
       await theDraftReferencesTheOriginalCaptureAsSource(tester);

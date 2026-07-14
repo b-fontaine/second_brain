@@ -35,17 +35,26 @@ Briefs détaillés dans `docs/research/*.md` — les lire avant d'implémenter l
 
 ## Conventions pages/routes (pour le shell + agents)
 
+> Note « jalon A » (plan Serre, chantier 1) : navigation « 2 + 1 » —
+> Assistant à gauche, Explorer à droite, bouton central « Semer » qui ouvre
+> le speed-dial (`SeedDial` : Dicter / Coller / Ajouter un fichier, branché
+> sur les flux `CaptureBloc` existants). `CapturePage` n'est plus une
+> destination : le dial la pousse en plein écran, préamorcée par événement.
+
 | Feature | Page (classe) | Route |
 |---|---|---|
 | setup | `SetupPage` | `/setup` |
-| zettel | `NotesHomePage` | `/` |
+| explorer | `ExplorerPage` (jalon A : contenu notes partagé `NotesBrowser` ; fusion graphe au chantier 2) | `/` |
 | zettel | `ZettelDetailPage` | `/note/:id` |
 | zettel | `ZettelEditPage` | `/note/:id/edit` et `/new` |
-| capture | `CapturePage` | `/capture` |
+| capture | `CapturePage` (poussée par le `SeedDial`, plus une destination) | `/capture` → redirect `/?semer=1` (ouvre le dial) |
 | assistant | `AssistantChatPage` | `/chat` |
-| graph | `GraphPage` | `/graph` |
+| graph | `GraphPage` (encore dans le code, plus routée) | `/graph` → redirect `/` |
+| sync | `SettingsPage` | `/settings` (engrenage : bas du rail desktop, barre de recherche Explorer mobile) |
 
-Navigation adaptive : bottom bar (compact) / navigation rail (≥ 840 dp), panneau de lecture latéral en expanded.
+Navigation adaptive : barre basse 2 destinations + bouton Semer central
+(compact) / navigation rail + FAB Semer et raccourcis `⌘⇧D`/`⌘⇧V`/`⌘⇧O`
+(≥ 840 dp, Ctrl hors macOS), panneau de lecture latéral en expanded.
 
 ## Config plateformes (cumul des briefs)
 

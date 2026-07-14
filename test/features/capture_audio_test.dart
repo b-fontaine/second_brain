@@ -7,8 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import './step/the_app_is_running_with_a_configured_vault.dart';
 import './step/the_local_ai_model_is_available.dart';
 import './step/the_local_transcription_engine_is_available.dart';
-import './step/i_tap_the_capture_button.dart';
-import './step/i_choose_the_audio_capture_mode.dart';
+import './step/i_tap_the_seed_button.dart';
+import './step/i_choose_to_add_a_file.dart';
 import './step/i_import_the_audio_file.dart';
 import './step/a_transcript_is_produced.dart';
 import './step/the_transcript_is_shown_for_review.dart';
@@ -25,19 +25,17 @@ void main() {
       await theLocalTranscriptionEngineIsAvailable(tester);
     }
 
-    testWidgets('''Importing an audio file produces a transcript''', (
-      tester,
-    ) async {
+    testWidgets('''Importing an audio file produces a transcript''',
+        (tester) async {
       await bddSetUp(tester);
-      await iTapTheCaptureButton(tester);
-      await iChooseTheAudioCaptureMode(tester);
+      await iTapTheSeedButton(tester);
+      await iChooseToAddAFile(tester);
       await iImportTheAudioFile(tester, 'meeting.m4a');
       await aTranscriptIsProduced(tester);
       await theTranscriptIsShownForReview(tester);
     });
-    testWidgets('''The assistant turns a transcript into zettel drafts''', (
-      tester,
-    ) async {
+    testWidgets('''The assistant turns a transcript into zettel drafts''',
+        (tester) async {
       await bddSetUp(tester);
       await aTranscriptOfAnAudioNoteAbout(tester, 'les boucles de rétroaction');
       await iRunTheCaptureAssistantOnTheTranscript(tester);

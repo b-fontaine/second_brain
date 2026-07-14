@@ -7,8 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import './step/the_app_is_running_with_a_configured_vault.dart';
 import './step/the_local_ai_model_is_available.dart';
 import './step/the_local_ocr_engine_is_available.dart';
-import './step/i_tap_the_capture_button.dart';
-import './step/i_choose_the_screenshot_capture_mode.dart';
+import './step/i_tap_the_seed_button.dart';
+import './step/i_choose_to_add_a_file.dart';
 import './step/i_import_the_image_file.dart';
 import './step/the_recognized_text_is_shown_for_review.dart';
 import './step/an_ocr_result_about.dart';
@@ -26,14 +26,13 @@ void main() {
 
     testWidgets('''Importing a screenshot extracts its text''', (tester) async {
       await bddSetUp(tester);
-      await iTapTheCaptureButton(tester);
-      await iChooseTheScreenshotCaptureMode(tester);
+      await iTapTheSeedButton(tester);
+      await iChooseToAddAFile(tester);
       await iImportTheImageFile(tester, 'slide.png');
       await theRecognizedTextIsShownForReview(tester);
     });
-    testWidgets('''The assistant turns OCR text into zettel drafts''', (
-      tester,
-    ) async {
+    testWidgets('''The assistant turns OCR text into zettel drafts''',
+        (tester) async {
       await bddSetUp(tester);
       await anOcrResultAbout(tester, 'l architecture hexagonale');
       await iRunTheCaptureAssistantOnTheOcrText(tester);

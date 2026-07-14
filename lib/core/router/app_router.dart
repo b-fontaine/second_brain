@@ -2,12 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/assistant/presentation/pages/assistant_chat_page.dart';
-import '../../features/capture/presentation/pages/capture_page.dart';
-import '../../features/graph/presentation/pages/graph_page.dart';
+import '../../features/explorer/presentation/pages/explorer_page.dart';
 import '../../features/setup/domain/repositories/setup_repository.dart';
 import '../../features/setup/presentation/pages/setup_page.dart';
 import '../../features/sync/presentation/pages/settings_page.dart';
-import '../../features/zettel/presentation/pages/notes_home_page.dart';
 import '../../features/zettel/presentation/pages/zettel_detail_page.dart';
 import '../../features/zettel/presentation/pages/zettel_edit_page.dart';
 import '../di/injection.dart';
@@ -17,26 +15,29 @@ import '../widgets/adaptive_scaffold.dart';
 /// `context.go(AppRoutes.chat)` / `context.push(AppRoutes.noteDetail(id))`
 /// and never import pages of other features directly.
 abstract final class AppRoutes {
-  static const notes = '/';
-  static const capture = '/capture';
+  static const explorer = '/';
   static const chat = '/chat';
-  static const graph = '/graph';
   static const setup = '/setup';
   static const newNote = '/new';
   static const settings = '/settings';
+
+  /// Jalon A: former capture tab, redirects to Explorer with the seed dial
+  /// open so existing deep links stay valid.
+  static const capture = '/capture';
+
+  /// Jalon A: former graph tab, redirects to Explorer (chantier 2 merges
+  /// the constellation into it).
+  static const graph = '/graph';
 
   static String noteDetail(String id) => '/note/$id';
 
   static String noteEdit(String id) => '/note/$id/edit';
 }
 
-/// Paths of the four shell tabs, in [AdaptiveScaffold] destination order.
-const List<String> shellTabPaths = [
-  AppRoutes.notes,
-  AppRoutes.capture,
-  AppRoutes.chat,
-  AppRoutes.graph,
-];
+/// Paths of the two shell tabs, indexed by shell tab index (0 = Explorer,
+/// 1 = Assistant). The visual order — Assistant left of the central seed
+/// button, Explorer right — is owned by [AdaptiveScaffold].
+const List<String> shellTabPaths = [AppRoutes.explorer, AppRoutes.chat];
 
 /// Global redirect: as long as no vault is configured, every route except
 /// the onboarding leads to `/setup`. A config read failure is treated as
@@ -49,17 +50,14 @@ Future<String?> redirectIfNotConfigured(String matchedLocation) async {
   return configured ? null : AppRoutes.setup;
 }
 
-int _tabIndexFor(String location) {
-  if (location.startsWith(AppRoutes.capture)) return 1;
-  if (location.startsWith(AppRoutes.chat)) return 2;
-  if (location.startsWith(AppRoutes.graph)) return 3;
-  return 0;
-}
+int _tabIndexFor(String location) =>
+    location.startsWith(AppRoutes.chat) ? 1 : 0;
 
-/// Application router: an adaptive shell for the four main tabs, and
-/// full-screen routes for onboarding and note detail/edition.
+/// Application router: an adaptive « 2 + 1 » shell (Explorer, Assistant,
+/// seed dial), and full-screen routes for onboarding, settings and note
+/// detail/edition.
 final GoRouter appRouter = GoRouter(
-  initialLocation: AppRoutes.notes,
+  initialLocation: AppRoutes.explorer,
   redirect: (context, state) => redirectIfNotConfigured(state.matchedLocation),
   errorBuilder: (context, state) => const RouteNotFoundPage(),
   routes: [
@@ -74,6 +72,15 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.settings,
       builder: (context, state) => const SettingsPage(),
+    ),
+    // Jalon A redirects: the former tabs stay valid as deep links.
+    GoRoute(
+      path: AppRoutes.capture,
+      redirect: (context, state) => '${AppRoutes.explorer}?semer=1',
+    ),
+    GoRoute(
+      path: AppRoutes.graph,
+      redirect: (context, state) => AppRoutes.explorer,
     ),
     GoRoute(
       path: '/note/:id',
@@ -91,24 +98,19 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state, child) => AdaptiveScaffold(
         selectedIndex: _tabIndexFor(state.matchedLocation),
         onDestinationSelected: (index) => context.go(shellTabPaths[index]),
+        // `/capture` lands here as `/?semer=1`; the scaffold opens the
+        // seed dial once per rising edge of this flag.
+        openSeedDial: state.uri.queryParameters['semer'] == '1',
         child: child,
       ),
       routes: [
         GoRoute(
-          path: AppRoutes.notes,
-          builder: (context, state) => const NotesHomePage(),
-        ),
-        GoRoute(
-          path: AppRoutes.capture,
-          builder: (context, state) => const CapturePage(),
+          path: AppRoutes.explorer,
+          builder: (context, state) => const ExplorerPage(),
         ),
         GoRoute(
           path: AppRoutes.chat,
           builder: (context, state) => const AssistantChatPage(),
-        ),
-        GoRoute(
-          path: AppRoutes.graph,
-          builder: (context, state) => const GraphPage(),
         ),
       ],
     ),
@@ -140,7 +142,7 @@ class RouteNotFoundPage extends StatelessWidget {
               Text('Page introuvable', style: theme.textTheme.titleLarge),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: () => context.go(AppRoutes.notes),
+                onPressed: () => context.go(AppRoutes.explorer),
                 child: const Text('Retour à l’accueil'),
               ),
             ],

@@ -1,47 +1,23 @@
-import 'package:file_selector/file_selector.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../bloc/capture_bloc.dart';
+import '../utils/capture_file_pickers.dart';
 import 'capture_source_card.dart';
 
 /// Mode selection: the four ingestion assistant cards.
 class CaptureSourcesView extends StatelessWidget {
   const CaptureSourcesView({super.key});
 
-  bool get _isDesktop =>
-      defaultTargetPlatform == TargetPlatform.macOS ||
-      defaultTargetPlatform == TargetPlatform.windows ||
-      defaultTargetPlatform == TargetPlatform.linux;
-
-  Future<void> _pickAudioFile(BuildContext context) async {
+  Future<void> _pickAndAdd(
+    BuildContext context,
+    Future<CaptureEvent?> Function() picker,
+  ) async {
+    // Resolved before the async gap: the picker dialog outlives rebuilds.
     final bloc = context.read<CaptureBloc>();
-    final group = XTypeGroup(
-      label: 'Audio',
-      extensions: const ['wav', 'm4a', 'mp3', 'aac', 'flac', 'ogg', 'opus'],
-      uniformTypeIdentifiers: const ['public.audio'],
-    );
-    final file = await openFile(acceptedTypeGroups: [group]);
-    if (file != null) bloc.add(CaptureAudioFilePicked(file.path));
-  }
-
-  Future<void> _pickScreenshot(BuildContext context) async {
-    final bloc = context.read<CaptureBloc>();
-    if (_isDesktop) {
-      final group = XTypeGroup(
-        label: 'Images',
-        extensions: const ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'],
-        uniformTypeIdentifiers: const ['public.image'],
-      );
-      final file = await openFile(acceptedTypeGroups: [group]);
-      if (file != null) bloc.add(CaptureScreenshotPicked(file.path));
-    } else {
-      final image = await ImagePicker().pickImage(source: ImageSource.gallery);
-      if (image != null) bloc.add(CaptureScreenshotPicked(image.path));
-    }
+    final event = await picker();
+    if (event != null) bloc.add(event);
   }
 
   @override
@@ -58,15 +34,15 @@ class CaptureSourcesView extends StatelessWidget {
         icon: Icons.audio_file_outlined,
         title: 'Fichier audio',
         subtitle: 'Transcrire un enregistrement vocal (WAV)',
-        onTap: () => _pickAudioFile(context),
+        onTap: () => _pickAndAdd(context, pickAudioFileEvent),
       ),
       CaptureSourceCard(
         icon: Icons.screenshot_monitor_outlined,
         title: 'Capture d’écran',
         subtitle: 'Extraire le texte d’une image (OCR)',
-        onTap: () => _pickScreenshot(context),
-        secondaryActionLabel: _isDesktop ? 'Coller une image' : null,
-        onSecondaryAction: _isDesktop
+        onTap: () => _pickAndAdd(context, pickScreenshotEvent),
+        secondaryActionLabel: isDesktopPlatform ? 'Coller une image' : null,
+        onSecondaryAction: isDesktopPlatform
             ? () => bloc.add(const CapturePasteImageRequested())
             : null,
       ),

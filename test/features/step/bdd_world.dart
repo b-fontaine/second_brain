@@ -10,8 +10,10 @@
 /// real router) and script the outside world through the `fake*` globals.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:second_brain/app.dart';
@@ -41,6 +43,7 @@ import 'package:second_brain/features/capture/domain/usecases/start_dictation.da
 import 'package:second_brain/features/capture/domain/usecases/stop_dictation.dart';
 import 'package:second_brain/features/capture/domain/usecases/transcribe_audio_file.dart';
 import 'package:second_brain/features/capture/presentation/bloc/capture_bloc.dart';
+import 'package:second_brain/features/capture/presentation/pages/capture_page.dart';
 import 'package:second_brain/features/graph/domain/usecases/watch_vault.dart';
 import 'package:second_brain/features/graph/presentation/bloc/graph_cubit.dart';
 import 'package:second_brain/features/setup/data/datasources/setup_local_data_source.dart';
@@ -190,7 +193,7 @@ Future<void> setUpWorld(WidgetTester tester, {bool configured = true}) async {
 Future<void> pumpApp(WidgetTester tester) async {
   // `appRouter` is a process-wide singleton: send it back to the initial
   // location so a scenario never starts where the previous one ended.
-  appRouter.go(AppRoutes.notes);
+  appRouter.go(AppRoutes.explorer);
   await tester.pumpWidget(const SecondBrainApp());
   await tester.pumpAndSettle();
 }
@@ -260,6 +263,36 @@ Future<InboxItem> worldAddInboxItem(
   return result.getOrElse(
     (failure) => throw StateError('worldAddInboxItem: ${failure.message}'),
   );
+}
+
+/// Emulates the outcome of the seed dial's « Ajouter un fichier » chip,
+/// with [event] standing in for the native picker's answer: closes the dial
+/// when it is open, then pushes the full-screen capture flow primed with
+/// the event — the exact navigation `seedByFile` performs once
+/// `pickCaptureFileEvent` returns (the picker itself hard-calls
+/// `file_selector.openFile` and cannot run in a widget test).
+Future<void> worldSeedCaptureFlow(
+  WidgetTester tester,
+  CaptureEvent event,
+) async {
+  final scrim = find.byKey(const Key('seed-dial-scrim'));
+  if (scrim.evaluate().isNotEmpty) {
+    // Same dismissal as a tap on the barrier (a chip tap would dismiss the
+    // dial the same way before acting).
+    tester.widget<ModalBarrier>(scrim).onDismiss!();
+    await tester.pumpAndSettle();
+  }
+  // The chips resolve the ROOT navigator (the capture flow must cover the
+  // whole shell); the first Navigator in tree order is the root one.
+  final navigator = tester.state<NavigatorState>(find.byType(Navigator).first);
+  unawaited(
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => CapturePage(initialEvent: event),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 // --- DI registration ---------------------------------------------------------

@@ -6,27 +6,27 @@ import 'package:second_brain/features/capture/domain/services/transcription_serv
 import 'bdd_world.dart';
 import 'fakes/capture_live_fake_transcription_service.dart';
 
-/// Usage: I tap the capture button
+/// Usage: I tap the seed button
 ///
-/// Opens the "Capturer" tab from the shell navigation (compact layout in
-/// tests — 800x600 < 840 dp — so the destination lives in the bottom
-/// [NavigationBar]; its icon is unique while its label also titles pages).
+/// Taps the central « Semer » button of the shell (compact layout in tests —
+/// 800x600 < 840 dp — so the button overflows the bottom bar) and asserts
+/// the speed-dial opens with its three seeding chips.
 ///
-/// Before navigating, swaps the world's transcription fake for its
+/// Before opening, swaps the world's transcription fake for its
 /// live-dictation variant: the `TranscriptionService` lazy singleton is
-/// instantiated when the capture page first builds, so the swap must happen
-/// before this first navigation (see [CaptureLiveFakeTranscriptionService]).
-Future<void> iTapTheCaptureButton(WidgetTester tester) async {
+/// instantiated when a dial chip pushes the capture flow (the CaptureBloc
+/// factory resolves it), so the swap must happen before any chip is tapped
+/// (see [CaptureLiveFakeTranscriptionService]).
+Future<void> iTapTheSeedButton(WidgetTester tester) async {
   if (fakeTranscriptionService is! CaptureLiveFakeTranscriptionService) {
     fakeTranscriptionService = CaptureLiveFakeTranscriptionService.from(
       fakeTranscriptionService,
     );
   }
-  // The singleton may already have been instantiated with the base fake: a
-  // stray first frame can build the capture page during pumpApp when the
-  // PREVIOUS scenario ended there (the process-global router restores its
-  // last location until the async redirect back to '/' resolves).
-  // Re-register so the capture page created below binds to the live fake.
+  // The singleton may already have been instantiated with the base fake by
+  // an earlier step of the scenario (the DI closure reads the world global
+  // at instantiation time). Re-register so the capture flow pushed by a
+  // chip binds to the live fake.
   if (getIt.isRegistered<TranscriptionService>()) {
     await getIt.unregister<TranscriptionService>();
   }
@@ -38,11 +38,11 @@ Future<void> iTapTheCaptureButton(WidgetTester tester) async {
     isTrue,
     reason:
         'The TranscriptionService singleton must be the live-dictation '
-        'fake; something instantiated it before the capture page opened',
+        'fake; something instantiated it before the seed dial opened',
   );
 
-  // Opening the capture page instantiates the `VaultRagIndex` singleton,
-  // which subscribes to the vault-change stream INSIDE this test's FakeAsync
+  // The capture flow instantiates the `VaultRagIndex` singleton, which
+  // subscribes to the vault-change stream INSIDE this test's FakeAsync
   // zone. Dispose it before the test's zone dies: otherwise the NEXT
   // scenario's `getIt.reset()` closes that broadcast stream and waits
   // forever (real time) for a done event that the dead zone can never
@@ -53,15 +53,21 @@ Future<void> iTapTheCaptureButton(WidgetTester tester) async {
     }
   });
 
-  final captureDestination = find.byIcon(Icons.add_box_outlined);
+  final seedButton = find.byKey(const Key('seed-button'));
   expect(
-    captureDestination,
+    seedButton,
     findsOneWidget,
-    reason: 'The Capturer navigation destination should be visible',
+    reason: 'The central « Semer » button should be visible in the shell',
   );
-  await tester.tap(captureDestination);
+  await tester.tap(seedButton);
   await tester.pumpAndSettle();
 
-  // The capture mode-selection screen is displayed.
-  expect(find.text('Que souhaitez-vous capturer ?'), findsOneWidget);
+  // The speed-dial is open with its three seeding entries.
+  for (final chip in const ['Dicter', 'Coller', 'Ajouter un fichier']) {
+    expect(
+      find.text(chip),
+      findsOneWidget,
+      reason: 'The seed dial should offer the « $chip » entry',
+    );
+  }
 }

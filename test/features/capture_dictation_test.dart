@@ -7,9 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import './step/the_app_is_running_with_a_configured_vault.dart';
 import './step/the_local_ai_model_is_available.dart';
 import './step/the_local_transcription_engine_is_available.dart';
-import './step/i_tap_the_capture_button.dart';
-import './step/i_choose_the_dictation_capture_mode.dart';
-import './step/i_start_dictating.dart';
+import './step/i_tap_the_seed_button.dart';
+import './step/i_choose_to_dictate.dart';
 import './step/i_speak.dart';
 import './step/i_stop_dictating.dart';
 import './step/the_transcript_contains.dart';
@@ -27,16 +26,14 @@ void main() {
 
     testWidgets('''Dictating produces a live transcript''', (tester) async {
       await bddSetUp(tester);
-      await iTapTheCaptureButton(tester);
-      await iChooseTheDictationCaptureMode(tester);
-      await iStartDictating(tester);
+      await iTapTheSeedButton(tester);
+      await iChooseToDictate(tester);
       await iSpeak(tester, 'ceci est une note dictée');
       await iStopDictating(tester);
       await theTranscriptContains(tester, 'ceci est une note dictée');
     });
-    testWidgets('''The assistant files the dictated transcript''', (
-      tester,
-    ) async {
+    testWidgets('''The assistant files the dictated transcript''',
+        (tester) async {
       await bddSetUp(tester);
       await aDictatedTranscriptAbout(tester, 'la revue de code');
       await iRunTheCaptureAssistantOnTheTranscript(tester);

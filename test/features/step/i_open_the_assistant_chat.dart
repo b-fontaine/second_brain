@@ -8,8 +8,9 @@ import 'bdd_world.dart';
 /// Usage: I open the assistant chat
 ///
 /// Navigates like a user: taps the 'Assistant' destination of the adaptive
-/// shell (bottom [NavigationBar] on the compact 800x600 test surface), then
-/// settles so the model status check completes and the input bar is enabled.
+/// shell (left of the central seed button in the compact bottom bar — the
+/// 800x600 test surface is below the 840 dp breakpoint), then settles so
+/// the model status check completes and the input bar is enabled.
 Future<void> iOpenTheAssistantChat(WidgetTester tester) async {
   // Opening the chat instantiates the VaultRagIndex singleton, which
   // subscribes to the vault-change stream inside THIS test's FakeAsync
@@ -21,7 +22,7 @@ Future<void> iOpenTheAssistantChat(WidgetTester tester) async {
   addTearDown(() => getIt<VaultRagIndex>().dispose());
 
   final destination = find.descendant(
-    of: find.byType(NavigationBar),
+    of: find.byKey(const Key('seed-navigation-bar')),
     matching: find.text('Assistant'),
   );
   expect(

@@ -9,8 +9,8 @@ Feature: Audio capture with transcription assistant
     And the local transcription engine is available
 
   Scenario: Importing an audio file produces a transcript
-    When I tap the capture button
-    And I choose the audio capture mode
+    When I tap the seed button
+    And I choose to add a file
     And I import the audio file {'meeting.m4a'}
     Then a transcript is produced
     And the transcript is shown for review

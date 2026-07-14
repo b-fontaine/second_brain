@@ -9,8 +9,8 @@ Feature: Screenshot capture with OCR assistant
     And the local OCR engine is available
 
   Scenario: Importing a screenshot extracts its text
-    When I tap the capture button
-    And I choose the screenshot capture mode
+    When I tap the seed button
+    And I choose to add a file
     And I import the image file {'slide.png'}
     Then the recognized text is shown for review
 

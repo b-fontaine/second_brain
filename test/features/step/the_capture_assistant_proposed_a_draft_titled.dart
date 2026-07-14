@@ -5,13 +5,15 @@ import 'package:second_brain/features/capture/presentation/bloc/capture_bloc.dar
 import 'package:second_brain/features/capture/presentation/widgets/drafts_review_view.dart';
 
 import 'bdd_world.dart';
-import 'i_tap_the_capture_button.dart';
+import 'i_choose_to_paste.dart';
+import 'i_tap_the_seed_button.dart';
 
 /// Usage: the capture assistant proposed a draft titled {'Mémoire de travail'}
 ///
-/// Drives the full clipboard-capture journey with a single-paragraph text
-/// whose first line is the wanted title (the fake LLM proposes one draft
-/// per paragraph, first line as title), landing on the drafts review.
+/// Drives the full clipboard-capture journey (seed dial, « Coller » chip)
+/// with a single-paragraph text whose first line is the wanted title (the
+/// fake LLM proposes one draft per paragraph, first line as title), landing
+/// on the drafts review.
 Future<void> theCaptureAssistantProposedADraftTitled(
   WidgetTester tester,
   String param1,
@@ -23,13 +25,8 @@ Future<void> theCaptureAssistantProposedADraftTitled(
         'copié dans le presse-papiers.',
   );
 
-  await iTapTheCaptureButton(tester);
-
-  final card = find.text('Presse-papiers');
-  await tester.ensureVisible(card);
-  await tester.pumpAndSettle();
-  await tester.tap(card);
-  await tester.pumpAndSettle();
+  await iTapTheSeedButton(tester);
+  await iChooseToPaste(tester);
 
   await tester.tap(find.text('Organiser avec l’assistant'));
   await tester.pumpAndSettle();

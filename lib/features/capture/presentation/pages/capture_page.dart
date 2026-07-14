@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../zettel/domain/entities/inbox_item.dart';
 import '../bloc/capture_bloc.dart';
 import '../widgets/assistant_unavailable_view.dart';
@@ -12,15 +13,29 @@ import '../widgets/drafts_review_view.dart';
 import '../widgets/extracted_text_view.dart';
 import '../widgets/extraction_progress_view.dart';
 
-/// Capture screen (route `/capture`): the four ingestion assistants
-/// (clipboard, audio file, screenshot OCR, dictation).
+/// Full-screen capture flow hosting the ingestion assistants (clipboard,
+/// audio file, screenshot OCR, dictation).
+///
+/// Since the « Semer » dial replaced the capture tab, this page is pushed
+/// above the shell by the dial chips or the desktop shortcuts, usually
+/// primed with [initialEvent] so the user lands directly in a flow.
+/// `/capture` deep links redirect to Explorer with the dial open.
 class CapturePage extends StatelessWidget {
-  const CapturePage({super.key});
+  const CapturePage({super.key, this.initialEvent});
+
+  /// Dispatched as soon as the bloc is created (dictation, clipboard,
+  /// picked file…). Null shows the mode selection cards.
+  final CaptureEvent? initialEvent;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => getIt<CaptureBloc>(),
+      create: (_) {
+        final bloc = getIt<CaptureBloc>();
+        final event = initialEvent;
+        if (event != null) bloc.add(event);
+        return bloc;
+      },
       child: const _CaptureView(),
     );
   }
@@ -38,8 +53,10 @@ class _CaptureView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // No local AppBar: the AdaptiveScaffold shell already titles the tab.
+    // Pushed above the shell: the page carries its own AppBar (title and
+    // back navigation), unlike the tab pages hosted by AdaptiveScaffold.
     return Scaffold(
+      appBar: AppBar(title: const Text('Semer')),
       body: SafeArea(
         child: BlocBuilder<CaptureBloc, CaptureState>(
           builder: (context, state) => switch (state) {
@@ -114,7 +131,14 @@ class _SuccessView extends StatelessWidget {
                 ),
                 if (state.createdCount > 0)
                   TextButton(
-                    onPressed: () => context.go('/'),
+                    onPressed: () {
+                      // Close the pushed capture flow before switching the
+                      // shell tab, otherwise the flow stays on top of it.
+                      final navigator = Navigator.of(context);
+                      final router = GoRouter.of(context);
+                      if (navigator.canPop()) navigator.pop();
+                      router.go(AppRoutes.explorer);
+                    },
                     child: const Text('Voir mes notes'),
                   ),
               ],

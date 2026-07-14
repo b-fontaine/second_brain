@@ -8,8 +8,8 @@ Feature: Clipboard capture with AI assistant
     And the local AI model is available
 
   Scenario: Pasting text opens the capture assistant
-    When I tap the capture button
-    And I choose the clipboard capture mode
+    When I tap the seed button
+    And I choose to paste
     Then the clipboard content is shown as capture source
 
   Scenario: The assistant proposes atomic zettels from pasted text

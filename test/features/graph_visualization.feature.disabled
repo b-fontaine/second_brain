@@ -1,3 +1,10 @@
+# GELÉ (jalon A, plan Serre) : depuis la navigation « 2 + 1 », le graphe
+# n'est plus une destination (`/graph` redirige vers `/`) et la constellation
+# ne devient la surface d'Explorer qu'au chantier 2. Ce fichier est renommé en
+# `.disabled` pour être exclu de la génération bdd_widget_test ; au chantier 2,
+# le rétablir en `.feature`, réécrire « I open the graph view » vers Explorer
+# (les Then restent valides) et régénérer la suite. Les steps d'assertion
+# (nodes/edges/zoom/sélection) sont conservés dans test/features/step/.
 Feature: Molecular graph visualization of the zettelkasten
   As a knowledge worker
   I want a force-directed graph of my notes and their links
