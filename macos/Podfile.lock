@@ -1,0 +1,28 @@
+PODS:
+  - FlutterMacOS (1.0.0)
+  - git2dart_binaries (1.11.2):
+    - FlutterMacOS
+  - sherpa_onnx_macos (1.13.4):
+    - FlutterMacOS
+
+DEPENDENCIES:
+  - FlutterMacOS (from `Flutter/ephemeral`)
+  - git2dart_binaries (from `Flutter/ephemeral/.symlinks/plugins/git2dart_binaries/macos`)
+  - sherpa_onnx_macos (from `Flutter/ephemeral/.symlinks/plugins/sherpa_onnx_macos/macos`)
+
+EXTERNAL SOURCES:
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+  git2dart_binaries:
+    :path: Flutter/ephemeral/.symlinks/plugins/git2dart_binaries/macos
+  sherpa_onnx_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/sherpa_onnx_macos/macos
+
+SPEC CHECKSUMS:
+  FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  git2dart_binaries: 4b685b9f71ea9d07ebbdc9af691228dac37ed0cc
+  sherpa_onnx_macos: c0dffb86e3f9c50b8d79f2abda115e178954e806
+
+PODFILE CHECKSUM: b2df34f3e739a80f6c4039ebfa7fa4b2d197742a
+
+COCOAPODS: 1.16.2
