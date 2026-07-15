@@ -9,6 +9,10 @@ import 'package:flutter_test/flutter_test.dart';
 Future<void> iSeeTheEmptyZettelkastenHomeScreen(WidgetTester tester) async {
   final skipModelStep = find.text('Plus tard');
   if (skipModelStep.evaluate().isNotEmpty) {
+    // The model-choice screen can be taller than the viewport (three model
+    // cards): scroll the skip button into view before tapping it.
+    await tester.ensureVisible(skipModelStep);
+    await tester.pumpAndSettle();
     await tester.tap(skipModelStep);
     await tester.pumpAndSettle();
   }

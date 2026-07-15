@@ -1,6 +1,7 @@
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/error/failures.dart';
+import '../entities/ai_model_option.dart';
 import '../entities/assistant_answer.dart';
 import '../entities/zettel_draft.dart';
 
@@ -13,7 +14,17 @@ abstract interface class AssistantRepository {
   Future<Either<Failure, bool>> isReady();
 
   /// Installs the on-device model, emitting progress 0.0 → 1.0.
+  ///
+  /// Installs whichever model was last selected via [selectModel], or
+  /// [AiModelId.qwen3] when the user never made a choice.
   Stream<Either<Failure, double>> installModel();
+
+  /// The model currently selected, or `null` before any explicit choice.
+  Future<Either<Failure, AiModelId?>> getSelectedModel();
+
+  /// Persists the user's choice of on-device model. Call [installModel]
+  /// afterwards to actually download/activate it.
+  Future<Either<Failure, Unit>> selectModel(AiModelId modelId);
 
   /// Splits raw captured text into clean atomic zettel drafts with
   /// titles, tags and suggested links to existing related zettels.

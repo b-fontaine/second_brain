@@ -23,9 +23,11 @@ import 'package:second_brain/core/services/clock.dart';
 import 'package:second_brain/core/services/network_info.dart';
 import 'package:second_brain/core/services/vault_locator.dart';
 import 'package:second_brain/core/services/vault_write_notifier.dart';
+import 'package:second_brain/features/assistant/data/datasources/ai_model_preferences_impl.dart';
 import 'package:second_brain/features/assistant/data/datasources/rag_embeddings_gateway.dart';
 import 'package:second_brain/features/assistant/data/datasources/vault_rag_index.dart';
 import 'package:second_brain/features/assistant/data/repositories/gemma_assistant_repository.dart';
+import 'package:second_brain/features/assistant/domain/repositories/ai_model_preferences.dart';
 import 'package:second_brain/features/assistant/domain/repositories/assistant_repository.dart';
 import 'package:second_brain/features/assistant/domain/services/local_ai_service.dart';
 import 'package:second_brain/features/assistant/presentation/bloc/chat_bloc.dart';
@@ -165,6 +167,14 @@ Future<void> setUpWorld(WidgetTester tester, {bool configured = true}) async {
       // Best-effort cleanup of the temp vault.
     }
   });
+  // Dispose this test's singletons (e.g. VaultRagIndex cancelling its
+  // watchVault subscription) HERE, in this test's own zone — not via the
+  // leading `getIt.reset()` above, which runs at the start of the NEXT
+  // test's zone. TestWidgetsFlutterBinding runs each test in its own Zone;
+  // a stream subscription created in one test's zone whose cancellation is
+  // awaited from a different test's zone never completes, hanging until the
+  // framework's 10-minute safety timeout.
+  addTearDown(() => getIt.reset());
 
   worldLastZettel = null;
   fakeClock = FakeClock(DateTime(2026, 6, 1, 9, 0, 0));
@@ -417,8 +427,12 @@ void _registerDependencies() {
   );
 
   // Assistant: real repository + real keyword RAG index over the fake LLM.
+  // AiModelPreferences is the real SharedPreferences-backed impl: the world
+  // already mocks the plugin (setMockInitialValues), so this behaves like a
+  // first launch (no model selected) unless a step selects one.
   getIt
     ..registerLazySingleton<LocalAiService>(() => fakeLocalAiService)
+    ..registerLazySingleton<AiModelPreferences>(AiModelPreferencesImpl.new)
     ..registerLazySingleton<RagEmbeddingsGateway>(FakeRagEmbeddingsGateway.new)
     ..registerLazySingleton<VaultRagIndex>(
       () => VaultRagIndex(
@@ -432,6 +446,7 @@ void _registerDependencies() {
         getIt<LocalAiService>(),
         getIt<VaultRagIndex>(),
         getIt<ZettelRepository>(),
+        getIt<AiModelPreferences>(),
       ),
     )
     ..registerFactory<ChatBloc>(() => ChatBloc(getIt<AssistantRepository>()))

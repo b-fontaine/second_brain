@@ -5,6 +5,8 @@ import 'package:second_brain/core/error/exceptions.dart';
 import 'package:second_brain/core/error/failures.dart';
 import 'package:second_brain/features/assistant/data/datasources/vault_rag_index.dart';
 import 'package:second_brain/features/assistant/data/repositories/gemma_assistant_repository.dart';
+import 'package:second_brain/features/assistant/domain/entities/ai_model_option.dart';
+import 'package:second_brain/features/assistant/domain/repositories/ai_model_preferences.dart';
 import 'package:second_brain/features/assistant/domain/services/local_ai_service.dart';
 import 'package:second_brain/features/zettel/domain/entities/zettel.dart';
 import 'package:second_brain/features/zettel/domain/entities/zettel_id.dart';
@@ -16,10 +18,13 @@ class MockVaultRagIndex extends Mock implements VaultRagIndex {}
 
 class MockZettelRepository extends Mock implements ZettelRepository {}
 
+class MockAiModelPreferences extends Mock implements AiModelPreferences {}
+
 void main() {
   late MockLocalAiService localAi;
   late MockVaultRagIndex ragIndex;
   late MockZettelRepository zettelRepository;
+  late MockAiModelPreferences modelPreferences;
   late GemmaAssistantRepository repository;
 
   final idA = ZettelId.fromString('20260101100000');
@@ -41,13 +46,20 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(ZettelId.fromString('20260101000000'));
+    registerFallbackValue(AiModelId.qwen3);
   });
 
   setUp(() {
     localAi = MockLocalAiService();
     ragIndex = MockVaultRagIndex();
     zettelRepository = MockZettelRepository();
-    repository = GemmaAssistantRepository(localAi, ragIndex, zettelRepository);
+    modelPreferences = MockAiModelPreferences();
+    repository = GemmaAssistantRepository(
+      localAi,
+      ragIndex,
+      zettelRepository,
+      modelPreferences,
+    );
   });
 
   void stubGenerate(String response) {
@@ -489,6 +501,55 @@ void main() {
           AiFailure('erreur réseau pendant le téléchargement'),
         ),
       ]);
+    });
+  });
+
+  group('getSelectedModel', () {
+    test('delegates to AiModelPreferences', () async {
+      when(
+        () => modelPreferences.getSelectedModel(),
+      ).thenAnswer((_) async => AiModelId.gemma4E2B);
+
+      expect(
+        await repository.getSelectedModel(),
+        const Right<Failure, AiModelId?>(AiModelId.gemma4E2B),
+      );
+    });
+
+    test('returns null when the user never chose a model', () async {
+      when(
+        () => modelPreferences.getSelectedModel(),
+      ).thenAnswer((_) async => null);
+
+      expect(
+        await repository.getSelectedModel(),
+        const Right<Failure, AiModelId?>(null),
+      );
+    });
+  });
+
+  group('selectModel', () {
+    test('persists the choice via AiModelPreferences', () async {
+      when(
+        () => modelPreferences.setSelectedModel(AiModelId.gemma4E4B),
+      ).thenAnswer((_) async {});
+
+      final result = await repository.selectModel(AiModelId.gemma4E4B);
+
+      expect(result, const Right<Failure, Unit>(unit));
+      verify(
+        () => modelPreferences.setSelectedModel(AiModelId.gemma4E4B),
+      ).called(1);
+    });
+
+    test('maps a persistence error to AiFailure', () async {
+      when(
+        () => modelPreferences.setSelectedModel(any()),
+      ).thenThrow(Exception('disque plein'));
+
+      final result = await repository.selectModel(AiModelId.qwen3);
+
+      expect(result.isLeft(), isTrue);
     });
   });
 }

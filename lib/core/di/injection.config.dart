@@ -14,6 +14,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart' as _i558;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:injectable/injectable.dart' as _i526;
 
+import '../../features/assistant/data/datasources/ai_model_preferences_impl.dart'
+    as _i98;
 import '../../features/assistant/data/datasources/gemma_local_ai_service.dart'
     as _i961;
 import '../../features/assistant/data/datasources/rag_embeddings_gateway.dart'
@@ -22,6 +24,8 @@ import '../../features/assistant/data/datasources/vault_rag_index.dart'
     as _i835;
 import '../../features/assistant/data/repositories/gemma_assistant_repository.dart'
     as _i834;
+import '../../features/assistant/domain/repositories/ai_model_preferences.dart'
+    as _i999;
 import '../../features/assistant/domain/repositories/assistant_repository.dart'
     as _i814;
 import '../../features/assistant/domain/services/local_ai_service.dart'
@@ -177,7 +181,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i697.DocumentsDirectoryProvider>(
       () => _i697.PathProviderDocumentsDirectoryProvider(),
     );
-    gh.lazySingleton<_i173.LocalAiService>(() => _i961.GemmaLocalAiService());
     gh.lazySingleton<_i842.FileDownloader>(
       () => const _i842.HttpFileDownloader(),
     );
@@ -187,6 +190,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i636.AppDirectories>(),
         gh<_i974.HostPlatform>(),
       ),
+    );
+    gh.lazySingleton<_i999.AiModelPreferences>(
+      () => _i98.AiModelPreferencesImpl(),
+    );
+    gh.lazySingleton<_i173.LocalAiService>(
+      () => _i961.GemmaLocalAiService(gh<_i999.AiModelPreferences>()),
     );
     gh.lazySingleton<_i403.RagEmbeddingsGateway>(
       () => _i403.GemmaRagEmbeddingsGateway(),
@@ -293,6 +302,7 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i173.LocalAiService>(),
         gh<_i835.VaultRagIndex>(),
         gh<_i797.ZettelRepository>(),
+        gh<_i999.AiModelPreferences>(),
       ),
     );
     gh.lazySingleton<_i626.InboxRepository>(
