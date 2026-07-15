@@ -28,9 +28,10 @@ Future<void> iSelectTheGraphNode(WidgetTester tester, String param1) async {
   // The canvas also listens for double taps, so the single tap is only
   // resolved once the double-tap window (300 ms) has elapsed.
   await tester.pump(const Duration(milliseconds: 400));
-  // Compact layout: the selection opens a modal bottom sheet whose reading
-  // panel loads asynchronously. Bounded pumps only — the simulation ticker
-  // may still be live, which rules out pumpAndSettle.
+  // Compact layout: the persistent Explorer sheet animates up to its
+  // summary position while the cubit fetches the « fleur » suggestions.
+  // Bounded pumps only — the simulation ticker may still be live, which
+  // rules out pumpAndSettle.
   for (var i = 0; i < 8; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }

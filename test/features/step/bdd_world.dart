@@ -44,6 +44,8 @@ import 'package:second_brain/features/capture/domain/usecases/stop_dictation.dar
 import 'package:second_brain/features/capture/domain/usecases/transcribe_audio_file.dart';
 import 'package:second_brain/features/capture/presentation/bloc/capture_bloc.dart';
 import 'package:second_brain/features/capture/presentation/pages/capture_page.dart';
+import 'package:second_brain/features/explorer/presentation/bloc/seedling_count_cubit.dart';
+import 'package:second_brain/features/graph/domain/usecases/suggest_related_notes.dart';
 import 'package:second_brain/features/graph/domain/usecases/watch_vault.dart';
 import 'package:second_brain/features/graph/presentation/bloc/graph_cubit.dart';
 import 'package:second_brain/features/setup/data/datasources/setup_local_data_source.dart';
@@ -287,9 +289,7 @@ Future<void> worldSeedCaptureFlow(
   final navigator = tester.state<NavigatorState>(find.byType(Navigator).first);
   unawaited(
     navigator.push(
-      MaterialPageRoute<void>(
-        builder: (_) => CapturePage(initialEvent: event),
-      ),
+      MaterialPageRoute<void>(builder: (_) => CapturePage(initialEvent: event)),
     ),
   );
   await tester.pumpAndSettle();
@@ -373,9 +373,27 @@ void _registerDependencies() {
   // Graph.
   getIt
     ..registerFactory<WatchVault>(() => WatchVault(getIt<ZettelRepository>()))
+    ..registerFactory<SuggestRelatedNotes>(
+      () => SuggestRelatedNotes(
+        getIt<ZettelRepository>(),
+        getIt<VaultRagIndex>(),
+      ),
+    )
     ..registerFactory<GraphCubit>(
-      () => GraphCubit(getIt<GetAllZettels>(), getIt<WatchVault>()),
+      () => GraphCubit(
+        getIt<GetAllZettels>(),
+        getIt<WatchVault>(),
+        getIt<SuggestRelatedNotes>(),
+      ),
     );
+
+  // Explorer (fused surface).
+  getIt.registerFactory<SeedlingCountCubit>(
+    () => SeedlingCountCubit(
+      getIt<InboxRepository>(),
+      getIt<VaultWriteNotifier>(),
+    ),
+  );
 
   // Assistant: real repository + real keyword RAG index over the fake LLM.
   getIt

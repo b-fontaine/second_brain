@@ -78,8 +78,12 @@ class VaultRagIndex {
   }
 
   @disposeMethod
-  Future<void> dispose() async {
-    await _vaultSubscription?.cancel();
+  void dispose() {
+    // Fire-and-forget on purpose: awaiting this cancel would await a future
+    // completed in the subscription's creation zone. Under the BDD harness,
+    // that zone is the FakeAsync zone of a finished test — the await would
+    // never resolve and would deadlock the next scenario's getIt.reset().
+    unawaited(_vaultSubscription?.cancel());
     _vaultSubscription = null;
   }
 

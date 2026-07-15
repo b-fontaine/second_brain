@@ -63,6 +63,10 @@ import '../../features/capture/domain/usecases/stop_dictation.dart' as _i1035;
 import '../../features/capture/domain/usecases/transcribe_audio_file.dart'
     as _i131;
 import '../../features/capture/presentation/bloc/capture_bloc.dart' as _i181;
+import '../../features/explorer/presentation/bloc/seedling_count_cubit.dart'
+    as _i387;
+import '../../features/graph/domain/usecases/suggest_related_notes.dart'
+    as _i65;
 import '../../features/graph/domain/usecases/watch_vault.dart' as _i399;
 import '../../features/graph/presentation/bloc/graph_cubit.dart' as _i934;
 import '../../features/setup/data/datasources/documents_directory_provider.dart'
@@ -293,6 +297,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i27.VaultWriteNotifier>(),
       ),
     );
+    gh.factory<_i387.SeedlingCountCubit>(
+      () => _i387.SeedlingCountCubit(
+        gh<_i626.InboxRepository>(),
+        gh<_i27.VaultWriteNotifier>(),
+      ),
+    );
     gh.lazySingleton<_i22.GitSyncRepository>(
       () => _i700.GitSyncRepositoryImpl(
         gh<_i83.GitClient>(),
@@ -303,6 +313,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i727.PullChangeNotifier>(),
       ),
       dispose: _i700.disposeGitSyncRepository,
+    );
+    gh.factory<_i65.SuggestRelatedNotes>(
+      () => _i65.SuggestRelatedNotes(
+        gh<_i797.ZettelRepository>(),
+        gh<_i835.VaultRagIndex>(),
+      ),
     );
     gh.factory<_i772.AcceptDraft>(
       () => _i772.AcceptDraft(
@@ -316,9 +332,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i814.AssistantRepository>(),
         gh<_i239.Clock>(),
       ),
-    );
-    gh.factory<_i934.GraphCubit>(
-      () => _i934.GraphCubit(gh<_i677.GetAllZettels>(), gh<_i399.WatchVault>()),
     );
     gh.factory<_i376.ForceSynchronize>(
       () => _i376.ForceSynchronize(gh<_i22.GitSyncRepository>()),
@@ -340,6 +353,13 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.factory<_i592.ModelStatusCubit>(
       () => _i592.ModelStatusCubit(gh<_i814.AssistantRepository>()),
+    );
+    gh.factory<_i934.GraphCubit>(
+      () => _i934.GraphCubit(
+        gh<_i677.GetAllZettels>(),
+        gh<_i399.WatchVault>(),
+        gh<_i65.SuggestRelatedNotes>(),
+      ),
     );
     gh.factory<_i678.NotesListBloc>(
       () => _i678.NotesListBloc(

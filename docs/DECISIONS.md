@@ -44,17 +44,51 @@ Briefs détaillés dans `docs/research/*.md` — les lire avant d'implémenter l
 | Feature | Page (classe) | Route |
 |---|---|---|
 | setup | `SetupPage` | `/setup` |
-| explorer | `ExplorerPage` (jalon A : contenu notes partagé `NotesBrowser` ; fusion graphe au chantier 2) | `/` |
+| explorer | `ExplorerPage` (chantier 2 : surface fusionnée liste + constellation, voir section suivante) | `/` |
 | zettel | `ZettelDetailPage` | `/note/:id` |
 | zettel | `ZettelEditPage` | `/note/:id/edit` et `/new` |
 | capture | `CapturePage` (poussée par le `SeedDial`, plus une destination) | `/capture` → redirect `/?semer=1` (ouvre le dial) |
 | assistant | `AssistantChatPage` | `/chat` |
-| graph | `GraphPage` (encore dans le code, plus routée) | `/graph` → redirect `/` |
 | sync | `SettingsPage` | `/settings` (engrenage : bas du rail desktop, barre de recherche Explorer mobile) |
 
 Navigation adaptive : barre basse 2 destinations + bouton Semer central
 (compact) / navigation rail + FAB Semer et raccourcis `⌘⇧D`/`⌘⇧V`/`⌘⇧O`
 (≥ 840 dp, Ctrl hors macOS), panneau de lecture latéral en expanded.
+
+## Fusion Explorer (chantier 2, plan Serre)
+
+- **Une seule surface** : `ExplorerPage` (route `/`) superpose la
+  constellation plein écran (`ExplorerConstellation`, qui réutilise le
+  moteur graphe : un seul `CustomPaint`/`GraphPainter`, `ForceSimulation`
+  et cache de `TextPainter` partagés), une barre de recherche flottante,
+  une rangée de pills (« n semis », statut de synchro) et un
+  `DraggableScrollableSheet` persistant en compact (peek 0.10, résumé de
+  sélection 0.34, liste chronologique 0.90). En expanded (≥ 840 dp) :
+  panneau de lecture droit 400 dp à la sélection, panneau liste gauche
+  360 dp togglable, pas de sheet. Cinq états : vide, amas, sélection,
+  recherche, liste.
+- **Pages supprimées** : `NotesHomePage` (coquille sans référence),
+  `NotesBrowser` (remplacé par la surface fusionnée) et `GraphPage`
+  (la constellation est désormais l'Explorer). Les redirects `/graph → /`
+  et `/capture → /?semer=1` restent pour les liens profonds. Les tests du
+  moteur (pinch-zoom, label de sémantique) ont migré vers
+  `explorer_page_test.dart`.
+- **Couleur = état** : nœuds colorés par maturité (`ZettelMaturity` :
+  pousse < 2 liens, feuillage 2–3, arbre ≥ 4) via `SerreTokens` ;
+  sélection = anneau corail (`fleur`), suggestions IA = halo corail
+  (« fleurs », `SuggestRelatedNotes` sur `VaultRagIndex`, exclusion
+  self/voisins, garde anti-réponses périmées).
+- **Zoom sémantique (`GraphLod`)** : canopées par tag dominant sous
+  `canopyMaxScale = 0.35`, labels des hubs (degré ≥ `hubLabelMinDegree
+  = 4`) entre 0.35 et `fullLabelsMinScale = 0.7`, tous les labels
+  au-delà. Le cubit n'émet qu'au franchissement d'une bande, jamais par
+  frame de pinch ; canopées précalculées par révision, centroïdes O(N)
+  au paint.
+- **BDD** : `graph_visualization.feature` (gelée au jalon A) réécrite en
+  `explorer_constellation.feature` — la constellation n'étant plus une
+  destination, il n'y a plus de step « I open the graph view » ; les
+  assertions lisent toujours `GraphCubit`/`GraphPainter` via le
+  `CustomPaint`.
 
 ## Config plateformes (cumul des briefs)
 

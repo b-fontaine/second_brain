@@ -61,6 +61,13 @@ String formatFullDateFr(DateTime date) {
       'à ${local.hour}:$minutes';
 }
 
+/// French month-year label for chronological group headers,
+/// e.g. "juillet 2026".
+String formatMonthYearFr(DateTime date) {
+  final local = date.toLocal();
+  return '${_fullMonthsFr[local.month - 1]} ${local.year}';
+}
+
 String _formatShortDateFr(DateTime date, {required bool withYear}) {
   final day = date.day == 1 ? '1er' : '${date.day}';
   final base = '$day ${_shortMonthsFr[date.month - 1]}';

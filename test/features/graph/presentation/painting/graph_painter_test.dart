@@ -1,8 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:second_brain/core/theme/serre_tokens.dart';
 import 'package:second_brain/features/graph/presentation/painting/graph_painter.dart';
 
 void main() {
+  group('GraphPalette', () {
+    test('fromTheme resolves the node colors from the Serre tokens', () {
+      final palette = GraphPalette.fromTheme(
+        ThemeData(extensions: const [SerreTokens.light]),
+      );
+
+      expect(palette.pousse, SerreTokens.light.pousse);
+      expect(palette.feuillage, SerreTokens.light.feuillage);
+      expect(palette.arbre, SerreTokens.light.arbre);
+      expect(palette.fleur, SerreTokens.light.fleur);
+      // The selection ring is coral, like the fleur suggestions.
+      expect(palette.selection, SerreTokens.light.fleur);
+    });
+
+    test('fromTheme falls back to the color scheme without tokens', () {
+      final theme = ThemeData();
+      final palette = GraphPalette.fromTheme(theme);
+
+      expect(palette.pousse, theme.colorScheme.primary);
+      expect(palette.label, theme.colorScheme.onSurface);
+    });
+
+    test('maturityColor follows the maturity thresholds (0-1 / 2-3 / 4+)',
+        () {
+      final palette = GraphPalette.fromTheme(
+        ThemeData(extensions: const [SerreTokens.light]),
+      );
+
+      expect(palette.maturityColor(0), SerreTokens.light.pousse);
+      expect(palette.maturityColor(1), SerreTokens.light.pousse);
+      expect(palette.maturityColor(2), SerreTokens.light.feuillage);
+      expect(palette.maturityColor(3), SerreTokens.light.feuillage);
+      expect(palette.maturityColor(4), SerreTokens.light.arbre);
+      expect(palette.maturityColor(12), SerreTokens.light.arbre);
+    });
+  });
+
   group('GraphPainter.edgeMayBeVisible', () {
     const visible = Rect.fromLTRB(-200, -200, 200, 200);
 

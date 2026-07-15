@@ -36,7 +36,10 @@ lib/
     zettel/                     # cœur : entités Zettel, vault markdown, CRUD, liens, inbox
     capture/                    # assistants de capture : clipboard, audio, screenshot, dictée
     assistant/                  # IA locale : service LLM, drafts zettel, chat RAG
-    graph/                      # vue graphe force-directed + panneau de lecture
+    explorer/                   # surface fusionnée « jardin » (route /) : constellation,
+                                # recherche, pills, sheet persistant — compose graph + zettel
+    graph/                      # moteur graphe : simulation force-directed, painter,
+                                # cubit (sélection, recherche, LOD, canopées), panneau lecture
     sync/                       # git : clone/commit/push/pull, statut, auto-sync
 test/
   features/                     # *.feature Gherkin (bdd_widget_test)
@@ -108,10 +111,35 @@ question (texte | voix→STT)
 
 ## UI responsive/adaptive
 
-- Mobile d'abord : navigation par barre inférieure (Notes, Capture, Chat, Graphe).
-- ≥ 840 dp (desktop/tablette paysage) : navigation rail + layout deux panneaux
-  (liste/graphe à gauche, panneau de lecture à droite).
+- Navigation « 2 + 1 » (plan Serre) : Assistant à gauche, Explorer à droite,
+  bouton central « Semer » (speed-dial de capture). Barre inférieure en
+  compact, navigation rail + FAB Semer ≥ 840 dp.
 - Breakpoints Material 3 : compact < 600, medium < 840, expanded ≥ 840.
+
+## Surface Explorer (fusion chantier 2)
+
+`ExplorerPage` (feature `explorer`) est la fusion de la liste de notes et
+de la constellation : elle compose les blocs exposés par `zettel`
+(`NotesListBloc`) et `graph` (`GraphCubit`) — exception cross-feature
+documentée dans le code.
+
+- **Cinq états** : vide (pousse peinte + CTA « Semer »), amas
+  (constellation + sheet en peek), sélection (anneau corail + résumé dans
+  le peek, panneau droit 400 dp en expanded), recherche (résultats
+  flottants sous la barre, nœuds correspondants allumés, reste estompé),
+  liste (sheet tiré = liste chronologique groupée par mois, pastilles de
+  maturité).
+- **Moteur graphe étendu** (feature `graph`, consommé par l'Explorer) :
+  couleurs de nœuds par maturité (`SerreTokens`, palette résolue hors
+  paint), zoom sémantique `GraphLod` (canopées par tag dominant < 0.35,
+  labels des hubs jusqu'à 0.7, tous les labels au-delà), mode recherche
+  (`highlightedIds`), suggestions IA « fleurs » (`SuggestRelatedNotes`
+  sur l'index RAG local, halo corail). Un seul `CustomPaint` ; le cubit
+  précalcule les canopées par révision et n'émet le LOD qu'au
+  franchissement d'un seuil.
+- **Réactivité** : le graphe et la liste se rafraîchissent sur
+  `ZettelRepository.watchVault()` ; le compteur « n semis » écoute
+  `VaultWriteNotifier.changes` (`SeedlingCountCubit`).
 
 ## IA locale
 
