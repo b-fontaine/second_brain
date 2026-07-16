@@ -17,15 +17,18 @@ final class ZettelEditLoading extends ZettelEditState {
 }
 
 /// Form ready. [initial] is the note being edited, null when creating.
+/// [draft] is the pending capture prefilling the form in transplant mode.
 final class ZettelEditReady extends ZettelEditState {
-  const ZettelEditReady({this.initial});
+  const ZettelEditReady({this.initial, this.draft});
 
   final Zettel? initial;
+
+  final InboxItem? draft;
 
   bool get isNew => initial == null;
 
   @override
-  List<Object?> get props => [initial];
+  List<Object?> get props => [initial, draft];
 }
 
 final class ZettelEditSaving extends ZettelEditState {

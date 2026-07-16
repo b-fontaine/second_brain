@@ -3,19 +3,31 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../domain/entities/inbox_item.dart';
 import '../../domain/entities/zettel.dart';
 import '../../domain/entities/zettel_id.dart';
 import '../bloc/zettel_edit/zettel_edit_bloc.dart';
 import '../utils/zettel_text_formats.dart';
 import '../widgets/wikilink_picker_dialog.dart';
 
-/// Note editor (routes `/new` and `/note/:id/edit`): title, markdown
-/// body, tag chips and wikilink insertion.
+/// Note editor (routes `/new`, `/note/:id/edit` and `/pepiniere/edit`):
+/// title, markdown body, tag chips and wikilink insertion.
+///
+/// With [draftItem] set (nursery « Modifier »), the form is prefilled from
+/// the pending capture and saving transplants it into a zettel (« Repiquer »
+/// with the edited values) instead of creating a bare note.
 class ZettelEditPage extends StatelessWidget {
-  const ZettelEditPage({super.key, this.zettelId});
+  const ZettelEditPage({super.key, this.zettelId, this.draftItem})
+    : assert(
+        zettelId == null || draftItem == null,
+        'A note edition and a nursery draft are exclusive',
+      );
 
   /// Raw `:id` route parameter; null when creating (route `/new`).
   final String? zettelId;
+
+  /// Pending capture to edit then transplant (route `/pepiniere/edit`).
+  final InboxItem? draftItem;
 
   @override
   Widget build(BuildContext context) {
@@ -29,17 +41,23 @@ class ZettelEditPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => getIt<ZettelEditBloc>()
         ..add(
-          ZettelEditStarted(id: raw == null ? null : ZettelId.fromString(raw)),
+          ZettelEditStarted(
+            id: raw == null ? null : ZettelId.fromString(raw),
+            draftItem: draftItem,
+          ),
         ),
-      child: _ZettelEditView(isNew: raw == null),
+      child: _ZettelEditView(isNew: raw == null, isDraft: draftItem != null),
     );
   }
 }
 
 class _ZettelEditView extends StatefulWidget {
-  const _ZettelEditView({required this.isNew});
+  const _ZettelEditView({required this.isNew, this.isDraft = false});
 
   final bool isNew;
+
+  /// True in nursery transplant mode (adapted title and confirmation).
+  final bool isDraft;
 
   @override
   State<_ZettelEditView> createState() => _ZettelEditViewState();
@@ -157,23 +175,41 @@ class _ZettelEditViewState extends State<_ZettelEditView> {
     );
   }
 
-  String get _pageTitle => widget.isNew ? 'Nouvelle note' : 'Modifier la note';
+  String get _pageTitle {
+    if (widget.isDraft) return 'Repiquer le brouillon';
+    return widget.isNew ? 'Nouvelle note' : 'Modifier la note';
+  }
 
   void _onStateChanged(BuildContext context, ZettelEditState state) {
     if (state is ZettelEditReady && !_initialized) {
       final initial = state.initial;
+      final draft = state.draft;
       if (initial != null) {
         _titleController.text = initial.title;
         _bodyController.text = initial.body;
         _tags
           ..clear()
           ..addAll(initial.tags);
+      } else if (draft != null) {
+        // Nursery draft: prefill with the enriched proposal (same title as
+        // the Pépinière card), raw text and parcelles.
+        _titleController.text = draft.proposedTitle;
+        _bodyController.text = draft.rawText;
+        _tags
+          ..clear()
+          ..addAll(draft.tags);
       }
       setState(() => _initialized = true);
     } else if (state is ZettelEditSaved) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Note enregistrée')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isDraft
+                ? 'Brouillon repiqué — la note a rejoint le jardin.'
+                : 'Note enregistrée',
+          ),
+        ),
+      );
       if (context.canPop()) {
         context.pop();
       } else {

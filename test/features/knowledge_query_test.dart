@@ -23,21 +23,17 @@ void main() {
       await theAppIsRunningWithAConfiguredVault(tester);
       await theLocalAiModelIsAvailable(tester);
       await aZettelTitledExistsWithContentAboutCapacityLimits(
-        tester,
-        'Mémoire de travail',
-      );
+          tester, 'Mémoire de travail');
     }
 
-    testWidgets(
-      '''Asking a written question returns an answer with sources''',
-      (tester) async {
-        await bddSetUp(tester);
-        await iOpenTheAssistantChat(tester);
-        await iAsk(tester, 'Que sais-je sur la mémoire de travail ?');
-        await theAssistantAnswersUsingTheZettelkastenContent(tester);
-        await theAnswerCitesTheZettelAsSource(tester, 'Mémoire de travail');
-      },
-    );
+    testWidgets('''Asking a written question returns an answer with sources''',
+        (tester) async {
+      await bddSetUp(tester);
+      await iOpenTheAssistantChat(tester);
+      await iAsk(tester, 'Que sais-je sur la mémoire de travail ?');
+      await theAssistantAnswersUsingTheZettelkastenContent(tester);
+      await theAnswerCitesTheZettelAsSource(tester, 'Mémoire de travail');
+    });
     testWidgets('''Tapping a cited source opens the zettel''', (tester) async {
       await bddSetUp(tester);
       await theAssistantAnsweredCiting(tester, 'Mémoire de travail');

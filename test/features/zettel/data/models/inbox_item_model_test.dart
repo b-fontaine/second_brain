@@ -41,6 +41,23 @@ void main() {
       );
       expect(decoded.status, InboxStatus.processed);
     });
+
+    test('preserves the enriched title and parcelles', () {
+      final enriched = InboxItem(
+        id: '20260716120000',
+        type: CaptureType.file,
+        rawText: 'Contenu du fichier markdown.',
+        capturedAt: DateTime(2026, 7, 16, 12),
+        title: 'Titre proposé par l’assistant',
+        tags: const ['jardin', 'semis'],
+      );
+      final decoded = InboxItemModel.fromJsonString(
+        InboxItemModel.toJsonString(enriched),
+      );
+      expect(decoded, enriched);
+      expect(decoded.title, 'Titre proposé par l’assistant');
+      expect(decoded.tags, ['jardin', 'semis']);
+    });
   });
 
   group('serialization format', () {
@@ -50,6 +67,34 @@ void main() {
       expect(raw, endsWith('\n'));
       expect(raw, contains('"type": "audio"'));
       expect(raw, contains('"status": "pending"'));
+    });
+  });
+
+  group('backward compatibility', () {
+    test('reads pre-enrichment files without title or tags', () {
+      final decoded = InboxItemModel.fromJson({
+        'id': '20260714103000',
+        'type': 'clipboard',
+        'rawText': 'Capture historique',
+        'capturedAt': '2026-07-14T10:30:00.000',
+        'status': 'pending',
+      });
+      expect(decoded.title, isNull);
+      expect(decoded.tags, isEmpty);
+    });
+
+    test('ignores malformed enrichment fields instead of throwing', () {
+      final decoded = InboxItemModel.fromJson({
+        'id': '20260714103000',
+        'type': 'clipboard',
+        'rawText': 'Capture historique',
+        'capturedAt': '2026-07-14T10:30:00.000',
+        'title': 42,
+        'tags': ['ok', 7, '  '],
+        'status': 'pending',
+      });
+      expect(decoded.title, isNull);
+      expect(decoded.tags, ['ok']);
     });
   });
 

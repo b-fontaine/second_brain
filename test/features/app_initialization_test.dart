@@ -20,22 +20,18 @@ void main() {
       await iSeeText(tester, 'Bienvenue dans Second Brain');
       await iSeeText(tester, 'Configurer la synchronisation');
     });
-    testWidgets('''Configuring a remote repository with a token''', (
-      tester,
-    ) async {
+    testWidgets('''Configuring a remote repository with a token''',
+        (tester) async {
       await theAppIsRunningForTheFirstTime(tester);
       await iEnterIntoTheRepositoryUrlField(
-        tester,
-        'https://github.com/user/zettelkasten.git',
-      );
+          tester, 'https://github.com/user/zettelkasten.git');
       await iEnterIntoTheAccessTokenField(tester, 'ghp_token123');
       await iTapButton(tester, 'Cloner et démarrer');
       await theRepositoryIsClonedLocally(tester);
       await iSeeTheEmptyZettelkastenHomeScreen(tester);
     });
-    testWidgets('''Skipping remote configuration works offline-only''', (
-      tester,
-    ) async {
+    testWidgets('''Skipping remote configuration works offline-only''',
+        (tester) async {
       await theAppIsRunningForTheFirstTime(tester);
       await iTapButton(tester, 'Continuer sans synchronisation');
       await aLocalVaultIsCreated(tester);

@@ -1,26 +1,36 @@
-Feature: Clipboard capture with AI assistant
+Feature: Clipboard seeding through the sowing preview
   As a knowledge worker
-  I want to paste copied content and let a local AI assistant file it
-  So that raw content becomes clean atomic zettels
+  I want to paste copied content and review it before sowing
+  So that raw content becomes an enriched draft in the nursery
 
   Background:
     Given the app is running with a configured vault
     And the local AI model is available
 
-  Scenario: Pasting text opens the capture assistant
+  Scenario: Coller ouvre l'aperçu avant semis avec le texte détecté
     When I tap the seed button
     And I choose to paste
-    Then the clipboard content is shown as capture source
+    Then the seed preview shows the detected type {'Texte'}
+    And the seed preview text contains {'notes atomiques'}
 
-  Scenario: The assistant proposes atomic zettels from pasted text
-    Given the clipboard contains a long article about {'la mémoire de travail'}
-    When I run the capture assistant on the clipboard content
-    Then the assistant proposes at least {1} zettel draft
-    And each draft has a title, a body and suggested tags
-    And each draft suggests links to existing related zettels
+  Scenario: Semer le texte collé dépose un brouillon en pépinière
+    Given the clipboard contains a note about {'les jardins partagés'}
+    When I tap the seed button
+    And I choose to paste
+    Then the seed preview proposes the title {'Note copiée sur les jardins partagés'}
+    When I sow the seed preview
+    Then the explorer confirms the seeding
+    And the inbox contains {1} pending item
+    When I open the nursery from the explorer pill
+    Then the nursery shows the seedling titled {'Note copiée sur les jardins partagés'}
 
-  Scenario: Accepting a draft saves it to the zettelkasten
-    Given the capture assistant proposed a draft titled {'Mémoire de travail'}
-    When I accept the draft
-    Then a zettel exists with title {'Mémoire de travail'}
-    And the draft references the original capture as source
+  Scenario: L'IA locale propose un titre et une parcelle sur l'aperçu
+    Given the local AI proposes the title {'Semis sous serre froide'} and the parcelle {'serre'}
+    When I tap the seed button
+    And I choose to paste
+    Then the seed preview proposes the title {'Semis sous serre froide'}
+    And I see {'serre'} text
+    When I sow the seed preview
+    And I open the nursery from the explorer pill
+    Then the nursery shows the seedling titled {'Semis sous serre froide'}
+    And I see {'serre'} text

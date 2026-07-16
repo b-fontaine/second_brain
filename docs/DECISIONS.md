@@ -48,6 +48,9 @@ Briefs détaillés dans `docs/research/*.md` — les lire avant d'implémenter l
 | zettel | `ZettelDetailPage` | `/note/:id` |
 | zettel | `ZettelEditPage` | `/note/:id/edit` et `/new` |
 | capture | `CapturePage` (poussée par le `SeedDial`, plus une destination) | `/capture` → redirect `/?semer=1` (ouvre le dial) |
+| capture | `SeedPreviewPage` (« aperçu avant semis », poussée par les chips Coller/Fichier et le drop desktop) | aucune route (push impératif au-dessus du shell) |
+| capture | `PepinierePage` (« Pépinière — brouillons à valider ») | `/pepiniere` (pill « n semis » de l'Explorer) |
+| zettel | `ZettelEditPage` en mode brouillon (préremplie, la sauvegarde repique) | `/pepiniere/edit` (`InboxItem` en `extra`, sinon redirect `/pepiniere`) |
 | assistant | `AssistantChatPage` | `/chat` |
 | sync | `SettingsPage` | `/settings` (engrenage : bas du rail desktop, barre de recherche Explorer mobile) |
 
@@ -89,6 +92,59 @@ Navigation adaptive : barre basse 2 destinations + bouton Semer central
   destination, il n'y a plus de step « I open the graph view » ; les
   assertions lisent toujours `GraphCubit`/`GraphPainter` via le
   `CustomPaint`.
+
+## Semer multi-format + Pépinière (chantier 3, plan Serre)
+
+- **`CaptureIntake`** (`lib/features/capture/domain/services/capture_intake.dart`) :
+  point d'entrée unique du semis. Payloads scellés (`ClipboardPayload` /
+  `FilePayload` / `TextPayload`), détection du type par extension ou contenu
+  du presse-papiers (`SeedKind` text|image|audio), réutilisation des
+  pipelines existants (`RecognizeScreenshot` pour l'image,
+  `TranscribeAudioFile` pour l'audio, lecture **synchrone** des `.md`/`.txt`
+  — l'IO async ne complète pas sous FakeAsync), enrichissement titre +
+  parcelles via `LocalAiService.generate` (prompt système JSON strict FR
+  `{"title","tags"}`) avec **repli jamais bloquant** (première ligne comme
+  titre, zéro parcelle). `sow()` = **une seule** écriture inbox enrichie,
+  donc une seule pulse `VaultWriteNotifier`/commit sync par semis.
+- **Parcours** : Coller et Ajouter un fichier ouvrent `SeedPreviewPage`
+  (« aperçu avant semis » : chip du type détecté, texte extrait éditable,
+  titre proposé éditable, parcelles supprimables, CTA « Semer en
+  pépinière ») ; la dictée (vue immersive « serre de nuit », committée sur
+  `SerreTokens.dark`) sème **directement** à l'arrêt
+  (`CaptureBloc` → `CaptureSowing` → `CaptureSown`, garde anti-course sur
+  `CaptureReset`). Le flux assistant historique (découpage en drafts
+  atomiques) reste joignable via « Annuler » depuis la dictée
+  (`CaptureIdle` → `CaptureSourcesView`) et couvert par les tests unitaires.
+- **`InboxItem` étendu** : `title?` + `tags` (+ `CaptureType.file` pour les
+  fichiers texte importés), sérialisation `InboxItemModel` rétrocompatible
+  (champs absents/malformés tolérés). Getters mutualisés `proposedTitle`
+  (repli première ligne) et `captureSource` (`capture:<type>:<ref>`),
+  source de vérité de tout repiquage.
+- **Pépinière** (`/pepiniere`, hors shell) : une carte ambre (état
+  d'attente) par capture pending — source + horodatage `dd/MM/yyyy · HH:mm`
+  (sans `intl`, déterministe en test), titre proposé, extrait 3 lignes,
+  chips parcelles. Actions : **Repiquer** = `TransplantSeedling` (placé
+  dans `zettel/domain` et non `capture` pour éviter le cycle
+  zettel→capture : `CreateZettel` + provenance + marquage processed
+  best-effort), **Modifier** = `ZettelEditPage` préremplie via
+  `/pepiniere/edit` (la sauvegarde repique avec les modifications, jamais
+  `CreateZettel` nu), **Composter** = `removeItem` après confirmation.
+  `PepiniereCubit` : `busyItemId` anti double-tap, notices séquencées,
+  reload sur chaque pulse `VaultWriteNotifier` (même contrat que la pill
+  « n semis » de l'Explorer, `SeedlingCountCubit`).
+- **`desktop_drop ^0.7.1` retenu** (brief de recherche : aucun blocage, le
+  repli « bouton Fichier seul » n'a pas été nécessaire) : `WindowDropZone`
+  enveloppe le body de l'`AdaptiveScaffold` en largeur ≥ 840 dp avec gate
+  `isDesktopPlatform` (jamais construit sur mobile/tablette, support
+  Android en préversion), dossiers ignorés, premier fichier supporté →
+  `seedByDroppedFile` → même aperçu que « Ajouter un fichier » ;
+  entitlement macOS `user-selected.read-only` déjà présent.
+- **BDD réécrit** : `capture_clipboard/audio/screenshot/dictation.feature`
+  couvrent le parcours dial → aperçu → « Semer en pépinière » → vérification
+  en pépinière ; `pepiniere.feature` couvre liste, repiquage (note +
+  provenance), compostage, pill « n semis » (navigation + mise à jour) et
+  état vide. Les steps du flux drafts legacy ont été supprimés (couverture
+  conservée par `capture_bloc_test`).
 
 ## Config plateformes (cumul des briefs)
 

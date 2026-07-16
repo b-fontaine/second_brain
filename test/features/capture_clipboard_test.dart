@@ -8,48 +8,61 @@ import './step/the_app_is_running_with_a_configured_vault.dart';
 import './step/the_local_ai_model_is_available.dart';
 import './step/i_tap_the_seed_button.dart';
 import './step/i_choose_to_paste.dart';
-import './step/the_clipboard_content_is_shown_as_capture_source.dart';
-import './step/the_clipboard_contains_a_long_article_about.dart';
-import './step/i_run_the_capture_assistant_on_the_clipboard_content.dart';
-import './step/the_assistant_proposes_at_least_zettel_draft.dart';
-import './step/each_draft_has_a_title_a_body_and_suggested_tags.dart';
-import './step/each_draft_suggests_links_to_existing_related_zettels.dart';
-import './step/the_capture_assistant_proposed_a_draft_titled.dart';
-import './step/i_accept_the_draft.dart';
-import './step/a_zettel_exists_with_title.dart';
-import './step/the_draft_references_the_original_capture_as_source.dart';
+import './step/the_seed_preview_shows_the_detected_type.dart';
+import './step/the_seed_preview_text_contains.dart';
+import './step/the_clipboard_contains_a_note_about.dart';
+import './step/the_seed_preview_proposes_the_title.dart';
+import './step/i_sow_the_seed_preview.dart';
+import './step/the_explorer_confirms_the_seeding.dart';
+import './step/the_inbox_contains_pending_item.dart';
+import './step/i_open_the_nursery_from_the_explorer_pill.dart';
+import './step/the_nursery_shows_the_seedling_titled.dart';
+import './step/the_local_ai_proposes_the_title_and_the_parcelle.dart';
+import './step/i_see_text.dart';
 
 void main() {
-  group('''Clipboard capture with AI assistant''', () {
+  group('''Clipboard seeding through the sowing preview''', () {
     Future<void> bddSetUp(WidgetTester tester) async {
       await theAppIsRunningWithAConfiguredVault(tester);
       await theLocalAiModelIsAvailable(tester);
     }
 
-    testWidgets('''Pasting text opens the capture assistant''', (tester) async {
+    testWidgets('''Coller ouvre l'aperçu avant semis avec le texte détecté''',
+        (tester) async {
       await bddSetUp(tester);
       await iTapTheSeedButton(tester);
       await iChooseToPaste(tester);
-      await theClipboardContentIsShownAsCaptureSource(tester);
+      await theSeedPreviewShowsTheDetectedType(tester, 'Texte');
+      await theSeedPreviewTextContains(tester, 'notes atomiques');
     });
-    testWidgets('''The assistant proposes atomic zettels from pasted text''',
+    testWidgets('''Semer le texte collé dépose un brouillon en pépinière''',
         (tester) async {
       await bddSetUp(tester);
-      await theClipboardContainsALongArticleAbout(
-          tester, 'la mémoire de travail');
-      await iRunTheCaptureAssistantOnTheClipboardContent(tester);
-      await theAssistantProposesAtLeastZettelDraft(tester, 1);
-      await eachDraftHasATitleABodyAndSuggestedTags(tester);
-      await eachDraftSuggestsLinksToExistingRelatedZettels(tester);
+      await theClipboardContainsANoteAbout(tester, 'les jardins partagés');
+      await iTapTheSeedButton(tester);
+      await iChooseToPaste(tester);
+      await theSeedPreviewProposesTheTitle(
+          tester, 'Note copiée sur les jardins partagés');
+      await iSowTheSeedPreview(tester);
+      await theExplorerConfirmsTheSeeding(tester);
+      await theInboxContainsPendingItem(tester, 1);
+      await iOpenTheNurseryFromTheExplorerPill(tester);
+      await theNurseryShowsTheSeedlingTitled(
+          tester, 'Note copiée sur les jardins partagés');
     });
-    testWidgets('''Accepting a draft saves it to the zettelkasten''',
+    testWidgets('''L'IA locale propose un titre et une parcelle sur l'aperçu''',
         (tester) async {
       await bddSetUp(tester);
-      await theCaptureAssistantProposedADraftTitled(
-          tester, 'Mémoire de travail');
-      await iAcceptTheDraft(tester);
-      await aZettelExistsWithTitle(tester, 'Mémoire de travail');
-      await theDraftReferencesTheOriginalCaptureAsSource(tester);
+      await theLocalAiProposesTheTitleAndTheParcelle(
+          tester, 'Semis sous serre froide', 'serre');
+      await iTapTheSeedButton(tester);
+      await iChooseToPaste(tester);
+      await theSeedPreviewProposesTheTitle(tester, 'Semis sous serre froide');
+      await iSeeText(tester, 'serre');
+      await iSowTheSeedPreview(tester);
+      await iOpenTheNurseryFromTheExplorerPill(tester);
+      await theNurseryShowsTheSeedlingTitled(tester, 'Semis sous serre froide');
+      await iSeeText(tester, 'serre');
     });
   });
 }

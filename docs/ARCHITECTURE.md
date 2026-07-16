@@ -34,7 +34,8 @@ lib/
   features/
     setup/                      # onboarding : config repo git distant ou vault local
     zettel/                     # cœur : entités Zettel, vault markdown, CRUD, liens, inbox
-    capture/                    # assistants de capture : clipboard, audio, screenshot, dictée
+    capture/                    # semis multi-format : intake (détection, extraction,
+                                # enrichissement), aperçu avant semis, dictée, pépinière
     assistant/                  # IA locale : service LLM, drafts zettel, chat RAG
     explorer/                   # surface fusionnée « jardin » (route /) : constellation,
                                 # recherche, pills, sheet persistant — compose graph + zettel
@@ -79,17 +80,31 @@ source: "capture:audio:meeting.m4a"   # optionnel, provenance
   Les backlinks sont calculés par indexation, jamais stockés.
 - Section `## Références` en fin de note pour les sources externes.
 
-## Flux de capture (assistant IA)
+## Flux de capture : semis → pépinière → repiquage
 
 ```
-source (clipboard | fichier audio | image | dictée)
-  → extraction (texte brut | STT | OCR)
-  → item d'inbox persisté (rien ne se perd)
-  → assistant LLM local : découpe en notes atomiques,
-    titres, tags, liens suggérés vers zettels existants (similarité)
-  → drafts présentés à l'utilisateur (éditer / accepter / rejeter)
-  → acceptation → zettels écrits dans le vault → commit git → push si en ligne
+source (dictée | presse-papiers | fichier .md/.txt/image/audio | dépôt fenêtre desktop)
+  → CaptureIntake.analyze (domain capture, point d'entrée unique)
+      détection du type (extension / contenu du presse-papiers)
+      → extraction (texte brut | OCR | transcription)
+      → enrichissement IA locale : titre + parcelles proposés
+        (repli jamais bloquant : première ligne comme titre)
+  → aperçu avant semis (SeedPreviewPage : texte, titre, parcelles éditables)
+      — la dictée sème directement à l'arrêt, sans aperçu
+  → CaptureIntake.sow : UN item d'inbox enrichi persisté (rien ne se perd)
+  → Pépinière (/pepiniere, compteur pill « n semis » sur l'Explorer) :
+      Repiquer  → TransplantSeedling : zettel créé avec la provenance
+                  capture:<type>:<ref>, item marqué processed
+      Modifier  → ZettelEditPage préremplie ; la sauvegarde repique
+                  avec les modifications
+      Composter → suppression définitive (confirmation)
+  → zettel écrit dans le vault → commit git → push si en ligne
 ```
+
+Le flux assistant historique (découpe LLM en notes atomiques, drafts à
+accepter) reste disponible depuis le sélecteur de sources du flux
+`CaptureBloc` ; le semis n'y fait plus appel : le découpage se décide au
+repiquage, dans la pépinière.
 
 ## Flux de requête (RAG local)
 
@@ -139,7 +154,8 @@ documentée dans le code.
   franchissement d'un seuil.
 - **Réactivité** : le graphe et la liste se rafraîchissent sur
   `ZettelRepository.watchVault()` ; le compteur « n semis » écoute
-  `VaultWriteNotifier.changes` (`SeedlingCountCubit`).
+  `VaultWriteNotifier.changes` (`SeedlingCountCubit`) et pousse la
+  Pépinière (`/pepiniere`) au tap.
 
 ## IA locale
 

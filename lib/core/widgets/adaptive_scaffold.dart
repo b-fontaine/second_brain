@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/capture/presentation/widgets/seed_dial.dart';
+import '../../features/capture/presentation/widgets/window_drop_zone.dart';
 import '../../features/sync/presentation/widgets/sync_status_indicator.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
@@ -134,19 +135,22 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
           shift: true,
           meta: useMeta,
           control: !useMeta,
-        ): () => seedByDictation(context),
+        ): () =>
+            seedByDictation(context),
         SingleActivator(
           LogicalKeyboardKey.keyV,
           shift: true,
           meta: useMeta,
           control: !useMeta,
-        ): () => seedByClipboard(context),
+        ): () =>
+            seedByClipboard(context),
         SingleActivator(
           LogicalKeyboardKey.keyO,
           shift: true,
           meta: useMeta,
           control: !useMeta,
-        ): () => seedByFile(context),
+        ): () =>
+            seedByFile(context),
       },
       // The shortcuts need a focused descendant to receive key events even
       // when no field has focus.
@@ -175,45 +179,58 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
     return Scaffold(
       appBar: _buildAppBar(context),
       floatingActionButton: _SeedButton(onPressed: _openDial),
-      body: Row(
-        children: [
-          MouseRegion(
-            onEnter: (_) => setState(() => _railExtended = true),
-            onExit: (_) => setState(() => _railExtended = false),
-            child: NavigationRail(
-              selectedIndex: selectedRailIndex,
-              onDestinationSelected: (index) =>
-                  widget.onDestinationSelected(_destinations[index].tabIndex),
-              extended: _railExtended,
-              labelType: NavigationRailLabelType.none,
-              destinations: [
-                for (final destination in _destinations)
-                  NavigationRailDestination(
-                    icon: Icon(destination.icon),
-                    selectedIcon: Icon(destination.selectedIcon),
-                    label: Text(destination.label),
-                  ),
-              ],
-              // Desktop settings access; mobile goes through the gear of
-              // the Explorer search bar.
-              trailing: Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: IconButton(
-                      tooltip: 'Réglages',
-                      onPressed: () => context.push(AppRoutes.settings),
-                      icon: const Icon(Icons.settings_outlined),
+      // Window-wide drop target (desktop only): dropping a supported file
+      // opens the same « aperçu avant semis » as « Ajouter un fichier ».
+      body: WindowDropZone(
+        onFileDropped: (path) => seedByDroppedFile(context, path),
+        onUnsupportedDrop: () => ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Format non pris en charge — déposez un fichier '
+              '.md, .txt, une image ou un audio.',
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            MouseRegion(
+              onEnter: (_) => setState(() => _railExtended = true),
+              onExit: (_) => setState(() => _railExtended = false),
+              child: NavigationRail(
+                selectedIndex: selectedRailIndex,
+                onDestinationSelected: (index) =>
+                    widget.onDestinationSelected(_destinations[index].tabIndex),
+                extended: _railExtended,
+                labelType: NavigationRailLabelType.none,
+                destinations: [
+                  for (final destination in _destinations)
+                    NavigationRailDestination(
+                      icon: Icon(destination.icon),
+                      selectedIcon: Icon(destination.selectedIcon),
+                      label: Text(destination.label),
+                    ),
+                ],
+                // Desktop settings access; mobile goes through the gear of
+                // the Explorer search bar.
+                trailing: Expanded(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: IconButton(
+                        tooltip: 'Réglages',
+                        onPressed: () => context.push(AppRoutes.settings),
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          const VerticalDivider(width: 1, thickness: 1),
-          Expanded(child: widget.child),
-        ],
+            const VerticalDivider(width: 1, thickness: 1),
+            Expanded(child: widget.child),
+          ],
+        ),
       ),
     );
   }
@@ -275,11 +292,9 @@ class _SeedNavigationBar extends StatelessWidget {
                       Expanded(
                         child: _NavBarItem(
                           destination: _destinations[0],
-                          selected:
-                              _destinations[0].tabIndex == selectedIndex,
-                          onTap: () => onDestinationSelected(
-                            _destinations[0].tabIndex,
-                          ),
+                          selected: _destinations[0].tabIndex == selectedIndex,
+                          onTap: () =>
+                              onDestinationSelected(_destinations[0].tabIndex),
                         ),
                       ),
                       // Clearance under the central button.
@@ -287,11 +302,9 @@ class _SeedNavigationBar extends StatelessWidget {
                       Expanded(
                         child: _NavBarItem(
                           destination: _destinations[1],
-                          selected:
-                              _destinations[1].tabIndex == selectedIndex,
-                          onTap: () => onDestinationSelected(
-                            _destinations[1].tabIndex,
-                          ),
+                          selected: _destinations[1].tabIndex == selectedIndex,
+                          onTap: () =>
+                              onDestinationSelected(_destinations[1].tabIndex),
                         ),
                       ),
                     ],

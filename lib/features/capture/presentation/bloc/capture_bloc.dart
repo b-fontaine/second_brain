@@ -13,6 +13,7 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../../assistant/domain/entities/zettel_draft.dart';
 import '../../../zettel/domain/entities/inbox_item.dart';
+import '../../domain/services/capture_intake.dart';
 import '../../domain/services/transcription_service.dart';
 import '../../domain/usecases/accept_draft.dart';
 import '../../domain/usecases/capture_from_clipboard.dart';
@@ -27,9 +28,13 @@ import 'dictation_transcript.dart';
 part 'capture_event.dart';
 part 'capture_state.dart';
 
-/// Orchestrates the capture flow for the four ingestion assistants:
+/// Orchestrates the capture flow for the ingestion assistants:
 /// source → extraction (with model-download progress) → editable text →
 /// assistant drafts → review (accept / accept all / reject).
+///
+/// Exception: stopping a dictation no longer proposes zettels — the
+/// transcript goes through [CaptureIntake] and is sown as one enriched
+/// draft in the inbox nursery (Pépinière), reviewed there later.
 @injectable
 class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
   CaptureBloc({
@@ -41,6 +46,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     required StartDictation startDictation,
     required StopDictation stopDictation,
     required EnsureSttModel ensureSttModel,
+    required CaptureIntake captureIntake,
   }) : _captureFromClipboard = captureFromClipboard,
        _transcribeAudioFile = transcribeAudioFile,
        _recognizeScreenshot = recognizeScreenshot,
@@ -49,6 +55,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
        _startDictation = startDictation,
        _stopDictation = stopDictation,
        _ensureSttModel = ensureSttModel,
+       _captureIntake = captureIntake,
        super(const CaptureIdle()) {
     on<CaptureClipboardRequested>(_onClipboardRequested);
     on<CaptureAudioFilePicked>(_onAudioFilePicked);
@@ -75,6 +82,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
   final StartDictation _startDictation;
   final StopDictation _stopDictation;
   final EnsureSttModel _ensureSttModel;
+  final CaptureIntake _captureIntake;
 
   StreamSubscription<Either<Failure, DictationSegment>>? _dictationSub;
 
@@ -257,9 +265,26 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     final text = current.transcript.fullText;
     if (text.trim().isEmpty) {
       emit(const CaptureFailed("Aucune parole n'a été détectée"));
-    } else {
-      emit(CaptureTextEditing(type: CaptureType.dictation, text: text));
+      return;
     }
+    // No immediate zettel proposal anymore: the transcript becomes one
+    // enriched draft in the inbox nursery (Pépinière), transplanted later.
+    emit(const CaptureSowing());
+    final analyzed = await _captureIntake.analyze(
+      TextPayload(text, source: CaptureType.dictation),
+    );
+    final sown = await analyzed.fold<Future<Either<Failure, InboxItem>>>(
+      (failure) async => Left(failure),
+      (draft) => _captureIntake.sow(draft),
+    );
+    // The bloc's default event transformer is concurrent: a CaptureReset
+    // handled while the intake was enriching/writing must not be
+    // overwritten by this late result.
+    if (state is! CaptureSowing) return;
+    sown.fold(
+      (failure) => emit(CaptureFailed(failure.message)),
+      (item) => emit(CaptureSown(item)),
+    );
   }
 
   void _onTextChanged(CaptureTextChanged event, Emitter<CaptureState> emit) {

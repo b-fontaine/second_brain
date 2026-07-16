@@ -45,6 +45,23 @@ final class CaptureDictationRunning extends CaptureState {
   List<Object?> get props => [transcript];
 }
 
+/// The stopped dictation transcript is being enriched (proposed title and
+/// parcelles) and written to the inbox nursery by `CaptureIntake`.
+final class CaptureSowing extends CaptureState {
+  const CaptureSowing();
+}
+
+/// Terminal: the dictated transcript landed in the inbox nursery
+/// (« Pépinière — brouillons à valider ») as a single enriched draft.
+final class CaptureSown extends CaptureState {
+  const CaptureSown(this.item);
+
+  final InboxItem item;
+
+  @override
+  List<Object?> get props => [item];
+}
+
 /// Extracted text shown to the user for editing before organizing.
 final class CaptureTextEditing extends CaptureState {
   const CaptureTextEditing({

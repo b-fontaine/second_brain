@@ -116,6 +116,8 @@ class InboxRepositoryImpl implements InboxRepository {
 
   /// [InboxItem.copyWith] does not expose assetPath (domain callers never
   /// rewrite it); the import rewrite is a data-layer concern kept here.
+  /// Every other field is carried over — the enriched title and parcelles
+  /// of a seeded image/audio capture must survive the asset import.
   static InboxItem _withAssetPath(InboxItem item, String assetPath) {
     return InboxItem(
       id: item.id,
@@ -123,6 +125,8 @@ class InboxRepositoryImpl implements InboxRepository {
       rawText: item.rawText,
       capturedAt: item.capturedAt,
       assetPath: assetPath,
+      title: item.title,
+      tags: item.tags,
       status: item.status,
     );
   }

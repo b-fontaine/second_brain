@@ -2,36 +2,18 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../domain/services/capture_intake.dart';
 import '../bloc/capture_bloc.dart';
+
+export '../../domain/services/capture_intake.dart'
+    show captureAudioExtensions, captureImageExtensions, captureTextExtensions;
 
 /// File pickers shared by the capture source cards and the seed dial.
 ///
-/// Each helper opens the platform picker and maps the selection to the
-/// [CaptureEvent] of the existing pipeline (transcription or OCR); `null`
-/// means the user cancelled. Keeping the mapping here lets any surface
-/// (cards, dial, shortcuts) trigger a flow without duplicating the
-/// extension lists.
-
-/// Extensions the audio transcription pipeline accepts.
-const List<String> captureAudioExtensions = [
-  'wav',
-  'm4a',
-  'mp3',
-  'aac',
-  'flac',
-  'ogg',
-  'opus',
-];
-
-/// Extensions the image OCR pipeline accepts.
-const List<String> captureImageExtensions = [
-  'png',
-  'jpg',
-  'jpeg',
-  'webp',
-  'bmp',
-  'tiff',
-];
+/// Each helper opens the platform picker; `null` means the user cancelled.
+/// The extension lists live in the domain ([CaptureIntake] routes a picked
+/// file by extension), so any surface (cards, dial, shortcuts) stays in
+/// sync with what the pipelines actually accept.
 
 /// Desktop platforms pick images with file_selector; mobile goes through
 /// the photo gallery (image_picker).
@@ -66,20 +48,23 @@ Future<CaptureEvent?> pickScreenshotEvent() async {
   return image == null ? null : CaptureScreenshotPicked(image.path);
 }
 
-/// Picks any file the current pipelines can ingest (audio or image) and
-/// routes it to the matching flow by extension. `.md`/`.txt` intake will
-/// join once the CaptureIntake service lands (chantier 3); until then the
-/// picker only offers formats that already have a pipeline.
-Future<CaptureEvent?> pickCaptureFileEvent() async {
+/// Picks any file the seeding intake can ingest (.md/.txt notes, images,
+/// audio) for the « aperçu avant semis » flow; the kind detection itself
+/// happens in [CaptureIntake]. Returns the path, or null on cancel.
+Future<String?> pickSeedFilePath() async {
   final group = XTypeGroup(
-    label: 'Audio ou image',
-    extensions: [...captureAudioExtensions, ...captureImageExtensions],
-    uniformTypeIdentifiers: const ['public.audio', 'public.image'],
+    label: 'Notes, images ou audio',
+    extensions: [
+      ...captureTextExtensions,
+      ...captureImageExtensions,
+      ...captureAudioExtensions,
+    ],
+    uniformTypeIdentifiers: const [
+      'public.plain-text',
+      'public.image',
+      'public.audio',
+    ],
   );
   final file = await openFile(acceptedTypeGroups: [group]);
-  if (file == null) return null;
-  final extension = file.path.split('.').last.toLowerCase();
-  return captureImageExtensions.contains(extension)
-      ? CaptureScreenshotPicked(file.path)
-      : CaptureAudioFilePicked(file.path);
+  return file?.path;
 }

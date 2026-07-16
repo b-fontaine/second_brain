@@ -201,6 +201,29 @@ void main() {
       expect(stored['assetPath'], saved.assetPath);
     });
 
+    test('the asset import keeps the enriched title and parcelles', () async {
+      // Regression: the path rewrite used to rebuild the item without
+      // title/tags, blanking the enrichment of image/audio seedlings.
+      final source = File(p.join(tempDir.path, 'capture.png'));
+      await source.writeAsBytes([1, 2, 3]);
+      final enriched = InboxItem(
+        id: '20260714122000',
+        type: CaptureType.screenshot,
+        rawText: 'texte extrait par OCR',
+        capturedAt: DateTime(2026, 7, 14, 12, 20),
+        assetPath: source.path,
+        title: 'Semis enrichi',
+        tags: const ['jardin', 'ocr'],
+      );
+
+      final result = await repository.addItem(enriched);
+
+      final saved = result.getOrElse((f) => fail('$f'));
+      expect(saved.assetPath, p.join('assets', 'capture.png'));
+      expect(saved.title, 'Semis enrichi');
+      expect(saved.tags, ['jardin', 'ocr']);
+    });
+
     test('a taken file name falls back to an id-prefixed name', () async {
       final assets = Directory(p.join(vaultDir.path, 'assets'))
         ..createSync(recursive: true);

@@ -39,9 +39,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dicter'), findsOneWidget);
-    expect(find.text('voix → note, hors-ligne'), findsOneWidget);
+    expect(find.text('voix → pépinière, hors-ligne'), findsOneWidget);
     expect(find.text('Coller'), findsOneWidget);
-    expect(find.text('texte · markdown · image · audio'), findsOneWidget);
+    expect(find.text('texte · markdown · image'), findsOneWidget);
     expect(find.text('Ajouter un fichier'), findsOneWidget);
     expect(find.text('.md · .txt · image · audio'), findsOneWidget);
   });

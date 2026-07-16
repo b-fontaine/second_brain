@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// (`file_selector.openFile` via `seedByFile`, no injectable wrapper),
 /// which cannot run in a widget test. The file selection itself is injected
 /// by "I import the audio file" / "I import the image file", which perform
-/// the navigation the picker callback would (see `worldSeedCaptureFlow`).
+/// the navigation the picker callback would (see `worldOpenSeedPreview`).
 Future<void> iChooseToAddAFile(WidgetTester tester) async {
   expect(
     find.byKey(const Key('seed-dial-file')),

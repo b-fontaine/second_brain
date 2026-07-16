@@ -50,12 +50,24 @@ abstract final class InboxItemModel {
 
     final assetPath = json['assetPath'];
 
+    // Enrichment fields are lenient: inbox files written before the
+    // seeding intake existed simply have no title and no tags.
+    final title = json['title'];
+    final rawTags = json['tags'];
+    final tags = <String>[
+      if (rawTags is List)
+        for (final tag in rawTags)
+          if (tag is String && tag.trim().isNotEmpty) tag.trim(),
+    ];
+
     return InboxItem(
       id: id,
       type: _enumByName(CaptureType.values, json['type'], 'type'),
       rawText: rawText,
       capturedAt: capturedAt,
       assetPath: assetPath is String && assetPath.isNotEmpty ? assetPath : null,
+      title: title is String && title.trim().isNotEmpty ? title.trim() : null,
+      tags: tags,
       status: _enumByName(InboxStatus.values, json['status'], 'status'),
     );
   }
@@ -67,6 +79,8 @@ abstract final class InboxItemModel {
     'rawText': item.rawText,
     'capturedAt': item.capturedAt.toIso8601String(),
     if (item.assetPath != null) 'assetPath': item.assetPath,
+    if (item.title != null) 'title': item.title,
+    if (item.tags.isNotEmpty) 'tags': item.tags,
     'status': item.status.name,
   };
 

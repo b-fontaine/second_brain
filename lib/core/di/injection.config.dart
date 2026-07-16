@@ -47,6 +47,7 @@ import '../../features/capture/data/services/system_clipboard_service.dart'
     as _i635;
 import '../../features/capture/data/services/tesseract_cli_ocr_backend.dart'
     as _i839;
+import '../../features/capture/domain/services/capture_intake.dart' as _i18;
 import '../../features/capture/domain/services/clipboard_service.dart' as _i751;
 import '../../features/capture/domain/services/ocr_service.dart' as _i894;
 import '../../features/capture/domain/services/transcription_service.dart'
@@ -63,6 +64,9 @@ import '../../features/capture/domain/usecases/stop_dictation.dart' as _i1035;
 import '../../features/capture/domain/usecases/transcribe_audio_file.dart'
     as _i131;
 import '../../features/capture/presentation/bloc/capture_bloc.dart' as _i181;
+import '../../features/capture/presentation/bloc/pepiniere_cubit.dart' as _i548;
+import '../../features/capture/presentation/bloc/seed_intake_cubit.dart'
+    as _i486;
 import '../../features/explorer/presentation/bloc/seedling_count_cubit.dart'
     as _i387;
 import '../../features/graph/domain/usecases/suggest_related_notes.dart'
@@ -115,6 +119,8 @@ import '../../features/zettel/domain/usecases/get_all_zettels.dart' as _i677;
 import '../../features/zettel/domain/usecases/get_backlinks.dart' as _i312;
 import '../../features/zettel/domain/usecases/get_zettel_by_id.dart' as _i651;
 import '../../features/zettel/domain/usecases/search_zettels.dart' as _i93;
+import '../../features/zettel/domain/usecases/transplant_seedling.dart'
+    as _i309;
 import '../../features/zettel/domain/usecases/update_zettel.dart' as _i767;
 import '../../features/zettel/presentation/bloc/notes_list/notes_list_bloc.dart'
     as _i678;
@@ -277,13 +283,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i767.UpdateZettel>(
       () => _i767.UpdateZettel(gh<_i797.ZettelRepository>()),
     );
-    gh.factory<_i644.ZettelEditBloc>(
-      () => _i644.ZettelEditBloc(
-        gh<_i499.CreateZettel>(),
-        gh<_i767.UpdateZettel>(),
-        gh<_i651.GetZettelById>(),
-      ),
-    );
     gh.lazySingleton<_i814.AssistantRepository>(
       () => _i834.GemmaAssistantRepository(
         gh<_i173.LocalAiService>(),
@@ -326,6 +325,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i626.InboxRepository>(),
       ),
     );
+    gh.factory<_i309.TransplantSeedling>(
+      () => _i309.TransplantSeedling(
+        gh<_i499.CreateZettel>(),
+        gh<_i626.InboxRepository>(),
+      ),
+    );
     gh.factory<_i1068.ProcessCapture>(
       () => _i1068.ProcessCapture(
         gh<_i626.InboxRepository>(),
@@ -361,11 +366,27 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i65.SuggestRelatedNotes>(),
       ),
     );
+    gh.factory<_i548.PepiniereCubit>(
+      () => _i548.PepiniereCubit(
+        gh<_i626.InboxRepository>(),
+        gh<_i309.TransplantSeedling>(),
+        gh<_i27.VaultWriteNotifier>(),
+      ),
+    );
     gh.factory<_i678.NotesListBloc>(
       () => _i678.NotesListBloc(
         gh<_i677.GetAllZettels>(),
         gh<_i93.SearchZettels>(),
         gh<_i797.ZettelRepository>(),
+      ),
+    );
+    gh.lazySingleton<_i18.CaptureIntake>(
+      () => _i18.CaptureIntake(
+        gh<_i848.RecognizeScreenshot>(),
+        gh<_i131.TranscribeAudioFile>(),
+        gh<_i173.LocalAiService>(),
+        gh<_i626.InboxRepository>(),
+        gh<_i239.Clock>(),
       ),
     );
     gh.factory<_i546.ZettelDetailCubit>(
@@ -375,16 +396,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i879.DeleteZettel>(),
       ),
     );
-    gh.factory<_i181.CaptureBloc>(
-      () => _i181.CaptureBloc(
-        captureFromClipboard: gh<_i590.CaptureFromClipboard>(),
-        transcribeAudioFile: gh<_i131.TranscribeAudioFile>(),
-        recognizeScreenshot: gh<_i848.RecognizeScreenshot>(),
-        processCapture: gh<_i1068.ProcessCapture>(),
-        acceptDraft: gh<_i772.AcceptDraft>(),
-        startDictation: gh<_i386.StartDictation>(),
-        stopDictation: gh<_i1035.StopDictation>(),
-        ensureSttModel: gh<_i320.EnsureSttModel>(),
+    gh.factory<_i644.ZettelEditBloc>(
+      () => _i644.ZettelEditBloc(
+        gh<_i499.CreateZettel>(),
+        gh<_i767.UpdateZettel>(),
+        gh<_i651.GetZettelById>(),
+        gh<_i309.TransplantSeedling>(),
       ),
     );
     gh.lazySingleton<_i236.SyncOrchestrator>(
@@ -411,6 +428,26 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i96.SetupLocalDataSource>(),
         gh<_i22.GitSyncRepository>(),
         gh<_i875.VaultLocator>(),
+      ),
+    );
+    gh.factory<_i181.CaptureBloc>(
+      () => _i181.CaptureBloc(
+        captureFromClipboard: gh<_i590.CaptureFromClipboard>(),
+        transcribeAudioFile: gh<_i131.TranscribeAudioFile>(),
+        recognizeScreenshot: gh<_i848.RecognizeScreenshot>(),
+        processCapture: gh<_i1068.ProcessCapture>(),
+        acceptDraft: gh<_i772.AcceptDraft>(),
+        startDictation: gh<_i386.StartDictation>(),
+        stopDictation: gh<_i1035.StopDictation>(),
+        ensureSttModel: gh<_i320.EnsureSttModel>(),
+        captureIntake: gh<_i18.CaptureIntake>(),
+      ),
+    );
+    gh.factory<_i486.SeedIntakeCubit>(
+      () => _i486.SeedIntakeCubit(
+        gh<_i18.CaptureIntake>(),
+        gh<_i590.CaptureFromClipboard>(),
+        gh<_i320.EnsureSttModel>(),
       ),
     );
     gh.factory<_i34.ConfigureLocalOnly>(

@@ -45,6 +45,7 @@ class _ExtractedTextViewState extends State<ExtractedTextView> {
     CaptureType.audio => 'Fichier audio',
     CaptureType.screenshot => 'Capture d’écran',
     CaptureType.dictation => 'Dictée',
+    CaptureType.file => 'Fichier',
   };
 
   @override

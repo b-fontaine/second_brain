@@ -10,34 +10,41 @@ import './step/the_local_transcription_engine_is_available.dart';
 import './step/i_tap_the_seed_button.dart';
 import './step/i_choose_to_dictate.dart';
 import './step/i_speak.dart';
-import './step/i_stop_dictating.dart';
 import './step/the_transcript_contains.dart';
-import './step/a_dictated_transcript_about.dart';
-import './step/i_run_the_capture_assistant_on_the_transcript.dart';
-import './step/the_assistant_proposes_at_least_zettel_draft.dart';
+import './step/i_stop_dictating.dart';
+import './step/the_explorer_confirms_the_seeding.dart';
+import './step/the_inbox_contains_pending_item.dart';
+import './step/i_open_the_nursery_from_the_explorer_pill.dart';
+import './step/the_nursery_shows_the_seedling_titled.dart';
 
 void main() {
-  group('''Dictation capture with live transcription''', () {
+  group('''Dictation seeding straight to the nursery''', () {
     Future<void> bddSetUp(WidgetTester tester) async {
       await theAppIsRunningWithAConfiguredVault(tester);
       await theLocalAiModelIsAvailable(tester);
       await theLocalTranscriptionEngineIsAvailable(tester);
     }
 
-    testWidgets('''Dictating produces a live transcript''', (tester) async {
+    testWidgets('''Dicter affiche la transcription en direct''',
+        (tester) async {
       await bddSetUp(tester);
       await iTapTheSeedButton(tester);
       await iChooseToDictate(tester);
       await iSpeak(tester, 'ceci est une note dictée');
-      await iStopDictating(tester);
       await theTranscriptContains(tester, 'ceci est une note dictée');
     });
-    testWidgets('''The assistant files the dictated transcript''',
+    testWidgets('''Arrêter la dictée sème le brouillon en pépinière''',
         (tester) async {
       await bddSetUp(tester);
-      await aDictatedTranscriptAbout(tester, 'la revue de code');
-      await iRunTheCaptureAssistantOnTheTranscript(tester);
-      await theAssistantProposesAtLeastZettelDraft(tester, 1);
+      await iTapTheSeedButton(tester);
+      await iChooseToDictate(tester);
+      await iSpeak(tester, 'penser à pailler les fraisiers avant les gelées');
+      await iStopDictating(tester);
+      await theExplorerConfirmsTheSeeding(tester);
+      await theInboxContainsPendingItem(tester, 1);
+      await iOpenTheNurseryFromTheExplorerPill(tester);
+      await theNurseryShowsTheSeedlingTitled(
+          tester, 'penser à pailler les fraisiers avant les gelées');
     });
   });
 }

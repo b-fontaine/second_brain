@@ -29,9 +29,8 @@ void main() {
       await theZettelIsCommittedToTheLocalRepository(tester);
       await theSyncStatusShowsPendingChanges(tester);
     });
-    testWidgets('''Regaining connectivity triggers an automatic push''', (
-      tester,
-    ) async {
+    testWidgets('''Regaining connectivity triggers an automatic push''',
+        (tester) async {
       await bddSetUp(tester);
       await theDeviceIsOffline(tester);
       await iCreateAZettelTitled(tester, 'Note hors ligne');

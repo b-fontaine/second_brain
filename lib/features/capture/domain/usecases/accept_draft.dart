@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:injectable/injectable.dart';
-import 'package:path/path.dart' as p;
 
 import '../../../../core/error/failures.dart';
 import '../../../../core/usecases/usecase.dart';
@@ -27,7 +26,7 @@ class AcceptDraft implements UseCase<Zettel, AcceptDraftParams> {
         title: params.draft.title,
         body: _bodyWithSuggestedLinks(params.draft),
         tags: params.draft.tags,
-        source: _buildSource(params.item),
+        source: params.item.captureSource,
       ),
     );
     return created.fold<Future<Either<Failure, Zettel>>>(
@@ -43,15 +42,6 @@ class AcceptDraft implements UseCase<Zettel, AcceptDraftParams> {
         return Right(zettel);
       },
     );
-  }
-
-  /// `capture:<type>:<ref>` where ref is the asset file name when the
-  /// capture had one (e.g. `capture:audio:meeting.m4a`), otherwise the
-  /// inbox item id.
-  String _buildSource(InboxItem item) {
-    final asset = item.assetPath;
-    final ref = (asset == null || asset.isEmpty) ? item.id : p.basename(asset);
-    return 'capture:${item.type.name}:$ref';
   }
 
   /// Appends the suggested links that the draft body does not already

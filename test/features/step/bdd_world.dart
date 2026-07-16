@@ -31,6 +31,7 @@ import 'package:second_brain/features/assistant/domain/services/local_ai_service
 import 'package:second_brain/features/assistant/presentation/bloc/chat_bloc.dart';
 import 'package:second_brain/features/assistant/presentation/bloc/dictation_cubit.dart';
 import 'package:second_brain/features/assistant/presentation/bloc/model_status_cubit.dart';
+import 'package:second_brain/features/capture/domain/services/capture_intake.dart';
 import 'package:second_brain/features/capture/domain/services/clipboard_service.dart';
 import 'package:second_brain/features/capture/domain/services/ocr_service.dart';
 import 'package:second_brain/features/capture/domain/services/transcription_service.dart';
@@ -43,7 +44,9 @@ import 'package:second_brain/features/capture/domain/usecases/start_dictation.da
 import 'package:second_brain/features/capture/domain/usecases/stop_dictation.dart';
 import 'package:second_brain/features/capture/domain/usecases/transcribe_audio_file.dart';
 import 'package:second_brain/features/capture/presentation/bloc/capture_bloc.dart';
-import 'package:second_brain/features/capture/presentation/pages/capture_page.dart';
+import 'package:second_brain/features/capture/presentation/bloc/pepiniere_cubit.dart';
+import 'package:second_brain/features/capture/presentation/bloc/seed_intake_cubit.dart';
+import 'package:second_brain/features/capture/presentation/pages/seed_preview_page.dart';
 import 'package:second_brain/features/explorer/presentation/bloc/seedling_count_cubit.dart';
 import 'package:second_brain/features/graph/domain/usecases/suggest_related_notes.dart';
 import 'package:second_brain/features/graph/domain/usecases/watch_vault.dart';
@@ -81,6 +84,7 @@ import 'package:second_brain/features/zettel/domain/usecases/get_all_zettels.dar
 import 'package:second_brain/features/zettel/domain/usecases/get_backlinks.dart';
 import 'package:second_brain/features/zettel/domain/usecases/get_zettel_by_id.dart';
 import 'package:second_brain/features/zettel/domain/usecases/search_zettels.dart';
+import 'package:second_brain/features/zettel/domain/usecases/transplant_seedling.dart';
 import 'package:second_brain/features/zettel/domain/usecases/update_zettel.dart';
 import 'package:second_brain/features/zettel/presentation/bloc/notes_list/notes_list_bloc.dart';
 import 'package:second_brain/features/zettel/presentation/bloc/zettel_detail/zettel_detail_cubit.dart';
@@ -252,6 +256,8 @@ Future<InboxItem> worldAddInboxItem(
   String rawText, {
   CaptureType type = CaptureType.clipboard,
   String? assetPath,
+  String? title,
+  List<String> tags = const [],
 }) async {
   fakeClock.advance();
   final item = InboxItem(
@@ -260,6 +266,8 @@ Future<InboxItem> worldAddInboxItem(
     rawText: rawText,
     capturedAt: fakeClock.current,
     assetPath: assetPath,
+    title: title,
+    tags: tags,
   );
   final result = await getIt<InboxRepository>().addItem(item);
   return result.getOrElse(
@@ -268,15 +276,12 @@ Future<InboxItem> worldAddInboxItem(
 }
 
 /// Emulates the outcome of the seed dial's « Ajouter un fichier » chip,
-/// with [event] standing in for the native picker's answer: closes the dial
-/// when it is open, then pushes the full-screen capture flow primed with
-/// the event — the exact navigation `seedByFile` performs once
-/// `pickCaptureFileEvent` returns (the picker itself hard-calls
+/// with [path] standing in for the native picker's answer: closes the dial
+/// when it is open, then pushes the « aperçu avant semis » preview primed
+/// with a [FileSeedSource] — exactly what `seedByFile` does after
+/// `pickSeedFilePath` returns (the picker itself hard-calls
 /// `file_selector.openFile` and cannot run in a widget test).
-Future<void> worldSeedCaptureFlow(
-  WidgetTester tester,
-  CaptureEvent event,
-) async {
+Future<void> worldOpenSeedPreview(WidgetTester tester, String path) async {
   final scrim = find.byKey(const Key('seed-dial-scrim'));
   if (scrim.evaluate().isNotEmpty) {
     // Same dismissal as a tap on the barrier (a chip tap would dismiss the
@@ -284,12 +289,14 @@ Future<void> worldSeedCaptureFlow(
     tester.widget<ModalBarrier>(scrim).onDismiss!();
     await tester.pumpAndSettle();
   }
-  // The chips resolve the ROOT navigator (the capture flow must cover the
-  // whole shell); the first Navigator in tree order is the root one.
+  // The chips resolve the ROOT navigator (the preview must cover the whole
+  // shell); the first Navigator in tree order is the root one.
   final navigator = tester.state<NavigatorState>(find.byType(Navigator).first);
   unawaited(
     navigator.push(
-      MaterialPageRoute<void>(builder: (_) => CapturePage(initialEvent: event)),
+      MaterialPageRoute<void>(
+        builder: (_) => SeedPreviewPage(source: FileSeedSource(path)),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -348,6 +355,9 @@ void _registerDependencies() {
     ..registerFactory<UpdateZettel>(
       () => UpdateZettel(getIt<ZettelRepository>()),
     )
+    ..registerFactory<TransplantSeedling>(
+      () => TransplantSeedling(getIt<CreateZettel>(), getIt<InboxRepository>()),
+    )
     ..registerFactory<NotesListBloc>(
       () => NotesListBloc(
         getIt<GetAllZettels>(),
@@ -367,6 +377,7 @@ void _registerDependencies() {
         getIt<CreateZettel>(),
         getIt<UpdateZettel>(),
         getIt<GetZettelById>(),
+        getIt<TransplantSeedling>(),
       ),
     );
 
@@ -466,6 +477,32 @@ void _registerDependencies() {
         startDictation: getIt<StartDictation>(),
         stopDictation: getIt<StopDictation>(),
         ensureSttModel: getIt<EnsureSttModel>(),
+        captureIntake: getIt<CaptureIntake>(),
+      ),
+    )
+    // Seeding intake (aperçu avant semis): real service over the fakes.
+    ..registerLazySingleton<CaptureIntake>(
+      () => CaptureIntake(
+        getIt<RecognizeScreenshot>(),
+        getIt<TranscribeAudioFile>(),
+        getIt<LocalAiService>(),
+        getIt<InboxRepository>(),
+        getIt<Clock>(),
+      ),
+    )
+    ..registerFactory<SeedIntakeCubit>(
+      () => SeedIntakeCubit(
+        getIt<CaptureIntake>(),
+        getIt<CaptureFromClipboard>(),
+        getIt<EnsureSttModel>(),
+      ),
+    )
+    // Pépinière (nursery review of the pending captures).
+    ..registerFactory<PepiniereCubit>(
+      () => PepiniereCubit(
+        getIt<InboxRepository>(),
+        getIt<TransplantSeedling>(),
+        getIt<VaultWriteNotifier>(),
       ),
     );
 

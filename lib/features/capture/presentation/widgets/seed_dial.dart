@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/serre_tokens.dart';
 import '../bloc/capture_bloc.dart';
+import '../bloc/seed_intake_cubit.dart';
 import '../pages/capture_page.dart';
+import '../pages/seed_preview_page.dart';
 import '../utils/capture_file_pickers.dart';
 
 /// Left-border accent of the « Ajouter un fichier » chip. Brown from the
@@ -19,23 +21,40 @@ void _openCaptureFlow(NavigatorState navigator, CaptureEvent event) {
   );
 }
 
+/// Pushes the « aperçu avant semis » preview which analyzes [source] then
+/// sows the reviewed draft into the inbox nursery ([SeedPreviewPage]).
+void _openSeedPreview(NavigatorState navigator, SeedSource source) {
+  navigator.push(
+    MaterialPageRoute<void>(
+      builder: (_) => SeedPreviewPage(source: source),
+    ),
+  );
+}
+
 /// « Dicter » : streaming STT dictation (⌘⇧D / Ctrl⇧D on desktop).
 void seedByDictation(BuildContext context) =>
     _openCaptureFlow(Navigator.of(context), const CaptureDictationStarted());
 
-/// « Coller » : import the copied text or image (⌘⇧V / Ctrl⇧V).
+/// « Coller » : preview the copied text or image before seeding it into
+/// the nursery (⌘⇧V / Ctrl⇧V).
 void seedByClipboard(BuildContext context) =>
-    _openCaptureFlow(Navigator.of(context), const CaptureClipboardRequested());
+    _openSeedPreview(Navigator.of(context), const ClipboardSeedSource());
 
-/// « Ajouter un fichier » : pick an audio or image file (⌘⇧O / Ctrl⇧O).
-/// No-op when the picker is cancelled.
+/// « Ajouter un fichier » : pick a note (.md/.txt), image or audio file and
+/// preview it before seeding (⌘⇧O / Ctrl⇧O). No-op when the picker is
+/// cancelled.
 Future<void> seedByFile(BuildContext context) async {
   // Resolved before the async gap so the flow can open even if the calling
   // widget (a dial chip being dismissed) is gone when the picker returns.
   final navigator = Navigator.of(context);
-  final event = await pickCaptureFileEvent();
-  if (event != null) _openCaptureFlow(navigator, event);
+  final path = await pickSeedFilePath();
+  if (path != null) _openSeedPreview(navigator, FileSeedSource(path));
 }
+
+/// Desktop window drop: previews the dropped file exactly like
+/// « Ajouter un fichier » would after the picker.
+void seedByDroppedFile(BuildContext context, String path) =>
+    _openSeedPreview(Navigator.of(context), FileSeedSource(path));
 
 /// Speed-dial of the « Semer » button: a scrim that dismisses on tap and
 /// three seeding chips. Single component for both form factors: chips stack
@@ -155,7 +174,7 @@ class _SeedDialState extends State<SeedDial>
                             key: const Key('seed-dial-dictate'),
                             icon: Icons.mic_none,
                             title: 'Dicter',
-                            subtitle: 'voix → note, hors-ligne',
+                            subtitle: 'voix → pépinière, hors-ligne',
                             accent: tokens.feuillage,
                             onTap: () =>
                                 _handle(widget.onDictate, seedByDictation),
@@ -165,7 +184,7 @@ class _SeedDialState extends State<SeedDial>
                             key: const Key('seed-dial-paste'),
                             icon: Icons.content_paste,
                             title: 'Coller',
-                            subtitle: 'texte · markdown · image · audio',
+                            subtitle: 'texte · markdown · image',
                             accent: tokens.ambre,
                             onTap: () =>
                                 _handle(widget.onPaste, seedByClipboard),

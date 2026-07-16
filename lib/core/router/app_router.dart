@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/assistant/presentation/pages/assistant_chat_page.dart';
+import '../../features/capture/presentation/pages/pepiniere_page.dart';
 import '../../features/explorer/presentation/pages/explorer_page.dart';
 import '../../features/setup/domain/repositories/setup_repository.dart';
 import '../../features/setup/presentation/pages/setup_page.dart';
 import '../../features/sync/presentation/pages/settings_page.dart';
+import '../../features/zettel/domain/entities/inbox_item.dart';
 import '../../features/zettel/presentation/pages/zettel_detail_page.dart';
 import '../../features/zettel/presentation/pages/zettel_edit_page.dart';
 import '../di/injection.dart';
@@ -20,6 +22,13 @@ abstract final class AppRoutes {
   static const setup = '/setup';
   static const newNote = '/new';
   static const settings = '/settings';
+
+  /// « Pépinière — brouillons à valider » : review of the pending captures.
+  static const pepiniere = '/pepiniere';
+
+  /// Prefilled edition of a nursery draft; expects the [InboxItem] as the
+  /// navigation `extra` (`context.push(AppRoutes.pepiniereEdit, extra: item)`).
+  static const pepiniereEdit = '/pepiniere/edit';
 
   /// Jalon A: former capture tab, redirects to Explorer with the seed dial
   /// open so existing deep links stay valid.
@@ -72,6 +81,21 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.settings,
       builder: (context, state) => const SettingsPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.pepiniere,
+      builder: (context, state) => const PepinierePage(),
+      routes: [
+        GoRoute(
+          path: 'edit',
+          // The draft travels as the navigation extra; a deep link without
+          // one (restored URL) falls back to the nursery list.
+          redirect: (context, state) =>
+              state.extra is InboxItem ? null : AppRoutes.pepiniere,
+          builder: (context, state) =>
+              ZettelEditPage(draftItem: state.extra! as InboxItem),
+        ),
+      ],
     ),
     // Jalon A redirects: the former tabs stay valid as deep links.
     GoRoute(

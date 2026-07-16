@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:second_brain/core/error/failures.dart';
 import 'package:second_brain/core/usecases/usecase.dart';
 import 'package:second_brain/features/assistant/domain/entities/zettel_draft.dart';
+import 'package:second_brain/features/capture/domain/services/capture_intake.dart';
 import 'package:second_brain/features/capture/domain/services/clipboard_service.dart';
 import 'package:second_brain/features/capture/domain/services/transcription_service.dart';
 import 'package:second_brain/features/capture/domain/usecases/accept_draft.dart';
@@ -37,6 +38,8 @@ class MockStopDictation extends Mock implements StopDictation {}
 
 class MockEnsureSttModel extends Mock implements EnsureSttModel {}
 
+class MockCaptureIntake extends Mock implements CaptureIntake {}
+
 void main() {
   late MockCaptureFromClipboard captureFromClipboard;
   late MockTranscribeAudioFile transcribeAudioFile;
@@ -46,6 +49,7 @@ void main() {
   late MockStartDictation startDictation;
   late MockStopDictation stopDictation;
   late MockEnsureSttModel ensureSttModel;
+  late MockCaptureIntake captureIntake;
 
   final tItem = InboxItem(
     id: '20260714103000',
@@ -70,6 +74,22 @@ void main() {
     body: 'Corps proposé.',
     createdAt: DateTime(2026, 7, 14, 10, 45),
   );
+  // A stopped dictation is analyzed (enriched) then sown by CaptureIntake.
+  const tSeedDraft = SeedDraft(
+    type: CaptureType.dictation,
+    kind: SeedKind.text,
+    text: 'bonjour à tous',
+    title: 'Bonjour',
+    tags: ['parcelle'],
+  );
+  final tSownItem = InboxItem(
+    id: '20260716120000',
+    type: CaptureType.dictation,
+    rawText: 'bonjour à tous',
+    capturedAt: DateTime(2026, 7, 16, 12),
+    title: 'Bonjour',
+    tags: const ['parcelle'],
+  );
 
   setUpAll(() {
     registerFallbackValue(const NoParams());
@@ -79,6 +99,8 @@ void main() {
       const ProcessCaptureParams(rawText: 'x', type: CaptureType.clipboard),
     );
     registerFallbackValue(AcceptDraftParams(draft: tDraft, item: tItem));
+    registerFallbackValue(const TextPayload('x'));
+    registerFallbackValue(tSeedDraft);
   });
 
   setUp(() {
@@ -90,6 +112,7 @@ void main() {
     startDictation = MockStartDictation();
     stopDictation = MockStopDictation();
     ensureSttModel = MockEnsureSttModel();
+    captureIntake = MockCaptureIntake();
   });
 
   CaptureBloc buildBloc() => CaptureBloc(
@@ -101,6 +124,7 @@ void main() {
     startDictation: startDictation,
     stopDictation: stopDictation,
     ensureSttModel: ensureSttModel,
+    captureIntake: captureIntake,
   );
 
   test('initial state is CaptureIdle', () {
@@ -273,7 +297,8 @@ void main() {
 
   group('dictation', () {
     blocTest<CaptureBloc, CaptureState>(
-      'streams partials then finals and ends on editable text',
+      'streams partials then finals and sows the transcript into the '
+      'nursery through CaptureIntake',
       build: () {
         when(
           () => ensureSttModel(any()),
@@ -291,6 +316,12 @@ void main() {
         when(
           () => stopDictation(any()),
         ).thenAnswer((_) async => const Right(unit));
+        when(
+          () => captureIntake.analyze(any()),
+        ).thenAnswer((_) async => const Right(tSeedDraft));
+        when(
+          () => captureIntake.sow(any()),
+        ).thenAnswer((_) async => Right(tSownItem));
         return buildBloc();
       },
       act: (bloc) async {
@@ -298,15 +329,69 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 30));
         bloc.add(const CaptureDictationStopped());
       },
-      expect: () => const [
-        CaptureDictationRunning(DictationTranscript()),
-        CaptureDictationRunning(DictationTranscript(partial: 'bonjour')),
-        CaptureDictationRunning(
+      expect: () => [
+        const CaptureDictationRunning(DictationTranscript()),
+        const CaptureDictationRunning(DictationTranscript(partial: 'bonjour')),
+        const CaptureDictationRunning(
           DictationTranscript(committed: 'bonjour à tous'),
         ),
-        CaptureTextEditing(type: CaptureType.dictation, text: 'bonjour à tous'),
+        const CaptureSowing(),
+        CaptureSown(tSownItem),
       ],
-      verify: (_) => verify(() => stopDictation(any())).called(1),
+      verify: (_) {
+        verify(() => stopDictation(any())).called(1);
+        verify(
+          () => captureIntake.analyze(
+            const TextPayload('bonjour à tous', source: CaptureType.dictation),
+          ),
+        ).called(1);
+        verify(() => captureIntake.sow(tSeedDraft)).called(1);
+      },
+    );
+
+    blocTest<CaptureBloc, CaptureState>(
+      'a failed sow of the stopped transcript surfaces the vault error',
+      build: () {
+        when(
+          () => captureIntake.analyze(any()),
+        ).thenAnswer((_) async => const Right(tSeedDraft));
+        when(
+          () => captureIntake.sow(any()),
+        ).thenAnswer((_) async => const Left(VaultFailure('disque plein')));
+        return buildBloc();
+      },
+      seed: () => const CaptureDictationRunning(
+        DictationTranscript(committed: 'bonjour à tous'),
+      ),
+      act: (bloc) => bloc.add(const CaptureDictationStopped()),
+      expect: () => const [
+        CaptureSowing(),
+        CaptureFailed('disque plein'),
+      ],
+    );
+
+    blocTest<CaptureBloc, CaptureState>(
+      'a reset while sowing wins over the late intake result',
+      build: () {
+        when(() => captureIntake.analyze(any())).thenAnswer((_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+          return const Right(tSeedDraft);
+        });
+        when(
+          () => captureIntake.sow(any()),
+        ).thenAnswer((_) async => Right(tSownItem));
+        return buildBloc();
+      },
+      seed: () => const CaptureDictationRunning(
+        DictationTranscript(committed: 'bonjour à tous'),
+      ),
+      act: (bloc) async {
+        bloc.add(const CaptureDictationStopped());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const CaptureReset());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      },
+      expect: () => const [CaptureSowing(), CaptureIdle()],
     );
 
     blocTest<CaptureBloc, CaptureState>(

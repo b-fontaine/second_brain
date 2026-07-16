@@ -10,7 +10,11 @@ import 'fakes/capture_live_fake_transcription_service.dart';
 /// stop button. The bloc's stop handler awaits the cancellation of its
 /// dictation subscription — an `async*` stream whose cancel future only
 /// completes on the REAL event loop — so short [WidgetTester.runAsync]
-/// hops are interleaved with pumps until the review screen appears.
+/// hops are interleaved with pumps until the next screen appears.
+///
+/// Stopping sows the transcript into the inbox nursery (Pépinière) via
+/// `CaptureIntake` and returns to the Explorer with a confirmation
+/// SnackBar (asserted by "the explorer confirms the seeding").
 Future<void> iStopDictating(WidgetTester tester) async {
   final service = fakeTranscriptionService;
   if (service is CaptureLiveFakeTranscriptionService) {

@@ -49,45 +49,81 @@ class _CaptureView extends StatelessWidget {
     CaptureType.audio => 'Transcription du fichier audio…',
     CaptureType.screenshot => 'Reconnaissance du texte de l’image…',
     CaptureType.dictation => 'Préparation de la dictée…',
+    CaptureType.file => 'Lecture du fichier…',
   };
+
+  /// Closes the pushed capture flow, returns to Explorer and confirms the
+  /// seeding. The messenger is the root one (above the shell), so the
+  /// SnackBar survives the pop. `GoRouter.maybeOf` keeps the view testable
+  /// without a router.
+  void _finishSown(BuildContext context) {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final router = GoRouter.maybeOf(context);
+    if (navigator.canPop()) navigator.pop();
+    router?.go(AppRoutes.explorer);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Semé en pépinière — brouillon à valider.'),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Pushed above the shell: the page carries its own AppBar (title and
-    // back navigation), unlike the tab pages hosted by AdaptiveScaffold.
-    return Scaffold(
-      appBar: AppBar(title: const Text('Semer')),
-      body: SafeArea(
-        child: BlocBuilder<CaptureBloc, CaptureState>(
-          builder: (context, state) => switch (state) {
-            CaptureIdle() => const CaptureSourcesView(),
-            CaptureModelInstalling(:final progress) => ExtractionProgressView(
-              label:
-                  'Téléchargement du modèle de reconnaissance vocale… '
-                  'Cette opération n’a lieu qu’au premier usage.',
-              progress: progress,
-            ),
-            CaptureExtracting(:final type) => ExtractionProgressView(
-              label: _extractionLabel(type),
-            ),
-            CaptureDictationRunning(:final transcript) => DictationView(
-              transcript: transcript,
-            ),
-            CaptureTextEditing() => ExtractedTextView(state: state),
-            CaptureOrganizing() => const ExtractionProgressView(
-              label:
-                  'L’assistant organise votre capture en notes '
-                  'atomiques…',
-            ),
-            CaptureAssistantUnavailable() => AssistantUnavailableView(
-              state: state,
-            ),
-            CaptureDraftsReview() => DraftsReviewView(state: state),
-            CaptureSuccess() => _SuccessView(state: state),
-            CaptureFailed(:final message) => _ErrorView(message: message),
-          },
-        ),
-      ),
+    return BlocConsumer<CaptureBloc, CaptureState>(
+      listener: (context, state) {
+        if (state is CaptureSown) _finishSown(context);
+      },
+      builder: (context, state) {
+        // The immersive dictation view owns the whole screen (night
+        // greenhouse backdrop, no app bar); every other state lives under
+        // the standard « Semer » app bar. Pushed above the shell: the page
+        // carries its own AppBar, unlike the tab pages hosted by
+        // AdaptiveScaffold.
+        if (state is CaptureDictationRunning) {
+          return DictationView(transcript: state.transcript);
+        }
+        return Scaffold(
+          appBar: AppBar(title: const Text('Semer')),
+          body: SafeArea(
+            child: switch (state) {
+              CaptureIdle() => const CaptureSourcesView(),
+              CaptureModelInstalling(:final progress) =>
+                ExtractionProgressView(
+                  label:
+                      'Téléchargement du modèle de reconnaissance vocale… '
+                      'Cette opération n’a lieu qu’au premier usage.',
+                  progress: progress,
+                ),
+              CaptureExtracting(:final type) => ExtractionProgressView(
+                label: _extractionLabel(type),
+              ),
+              // Unreachable (handled full-screen above); kept so the switch
+              // stays exhaustive without a discouraged wildcard.
+              CaptureDictationRunning(:final transcript) => DictationView(
+                transcript: transcript,
+              ),
+              CaptureSowing() => const ExtractionProgressView(
+                label: 'Semis du brouillon en pépinière…',
+              ),
+              CaptureSown() => const SizedBox.shrink(),
+              CaptureTextEditing() => ExtractedTextView(state: state),
+              CaptureOrganizing() => const ExtractionProgressView(
+                label:
+                    'L’assistant organise votre capture en notes '
+                    'atomiques…',
+              ),
+              CaptureAssistantUnavailable() => AssistantUnavailableView(
+                state: state,
+              ),
+              CaptureDraftsReview() => DraftsReviewView(state: state),
+              CaptureSuccess() => _SuccessView(state: state),
+              CaptureFailed(:final message) => _ErrorView(message: message),
+            },
+          ),
+        );
+      },
     );
   }
 }

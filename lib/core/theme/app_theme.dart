@@ -10,9 +10,12 @@ import 'serre_tokens.dart';
 /// Both families are bundled in assets/fonts (offline-first, no runtime
 /// font download).
 abstract final class AppTheme {
-  static ThemeData get light => _base(SerreTokens.light, Brightness.light);
+  // Memoized: rebuilding ThemeData yields unequal instances (the WidgetState
+  // resolver closures differ), which makes every MaterialApp re-pump run a
+  // spurious 200 ms AnimatedTheme transition.
+  static final ThemeData light = _base(SerreTokens.light, Brightness.light);
 
-  static ThemeData get dark => _base(SerreTokens.dark, Brightness.dark);
+  static final ThemeData dark = _base(SerreTokens.dark, Brightness.dark);
 
   static ThemeData _base(SerreTokens tokens, Brightness brightness) {
     final scheme = _schemeFrom(tokens, brightness);

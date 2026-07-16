@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:second_brain/core/error/failures.dart';
+import 'package:second_brain/features/zettel/domain/entities/inbox_item.dart';
 import 'package:second_brain/features/zettel/domain/entities/zettel.dart';
 import 'package:second_brain/features/zettel/domain/entities/zettel_id.dart';
 import 'package:second_brain/features/zettel/domain/usecases/create_zettel.dart';
 import 'package:second_brain/features/zettel/domain/usecases/get_zettel_by_id.dart';
+import 'package:second_brain/features/zettel/domain/usecases/transplant_seedling.dart';
 import 'package:second_brain/features/zettel/domain/usecases/update_zettel.dart';
 import 'package:second_brain/features/zettel/presentation/bloc/zettel_edit/zettel_edit_bloc.dart';
 
@@ -15,6 +17,8 @@ class MockCreateZettel extends Mock implements CreateZettel {}
 class MockUpdateZettel extends Mock implements UpdateZettel {}
 
 class MockGetZettelById extends Mock implements GetZettelById {}
+
+class MockTransplantSeedling extends Mock implements TransplantSeedling {}
 
 void main() {
   final noteId = ZettelId.fromString('20260101120000');
@@ -33,9 +37,19 @@ void main() {
     tags: const ['memoire'],
   );
 
+  final draftItem = InboxItem(
+    id: '20260716094100',
+    type: CaptureType.dictation,
+    rawText: 'Texte dicté du brouillon.',
+    capturedAt: DateTime(2026, 7, 16, 9, 41),
+    title: 'Brouillon dicté',
+    tags: const ['jardin'],
+  );
+
   late MockCreateZettel createZettel;
   late MockUpdateZettel updateZettel;
   late MockGetZettelById getZettelById;
+  late MockTransplantSeedling transplantSeedling;
 
   setUpAll(() {
     registerFallbackValue(ZettelId.fromString('20260101120000'));
@@ -50,16 +64,22 @@ void main() {
         createdAt: DateTime(2026),
       ),
     );
+    registerFallbackValue(TransplantSeedlingParams(item: draftItem));
   });
 
   setUp(() {
     createZettel = MockCreateZettel();
     updateZettel = MockUpdateZettel();
     getZettelById = MockGetZettelById();
+    transplantSeedling = MockTransplantSeedling();
   });
 
-  ZettelEditBloc buildBloc() =>
-      ZettelEditBloc(createZettel, updateZettel, getZettelById);
+  ZettelEditBloc buildBloc() => ZettelEditBloc(
+    createZettel,
+    updateZettel,
+    getZettelById,
+    transplantSeedling,
+  );
 
   group('ZettelEditBloc', () {
     test('initial state is ZettelEditInitial', () {
@@ -197,6 +217,71 @@ void main() {
         ).called(1);
         verifyNever(() => createZettel(any()));
       },
+    );
+
+    blocTest<ZettelEditBloc, ZettelEditState>(
+      'emits [ready(draft)] immediately in nursery transplant mode',
+      build: buildBloc,
+      act: (bloc) => bloc.add(ZettelEditStarted(draftItem: draftItem)),
+      expect: () => [ZettelEditReady(draft: draftItem)],
+      verify: (_) => verifyNever(() => getZettelById(any())),
+    );
+
+    blocTest<ZettelEditBloc, ZettelEditState>(
+      'transplants the draft with the edited values instead of creating '
+      'a bare note',
+      setUp: () {
+        when(
+          () => transplantSeedling(any()),
+        ).thenAnswer((_) async => Right(created));
+      },
+      build: buildBloc,
+      act: (bloc) => bloc
+        ..add(ZettelEditStarted(draftItem: draftItem))
+        ..add(
+          const ZettelEditSubmitted(
+            title: 'Titre repiqué',
+            body: 'Corps édité.',
+            tags: ['jardin', 'semis'],
+          ),
+        ),
+      expect: () => [
+        ZettelEditReady(draft: draftItem),
+        const ZettelEditSaving(),
+        ZettelEditSaved(created),
+      ],
+      verify: (_) {
+        verify(
+          () => transplantSeedling(
+            TransplantSeedlingParams(
+              item: draftItem,
+              title: 'Titre repiqué',
+              body: 'Corps édité.',
+              tags: const ['jardin', 'semis'],
+            ),
+          ),
+        ).called(1);
+        verifyNever(() => createZettel(any()));
+        verifyNever(() => updateZettel(any()));
+      },
+    );
+
+    blocTest<ZettelEditBloc, ZettelEditState>(
+      'surfaces a transplant failure as a non-blocking error',
+      setUp: () {
+        when(() => transplantSeedling(any())).thenAnswer(
+          (_) async => const Left(VaultFailure('Écriture impossible')),
+        );
+      },
+      build: buildBloc,
+      act: (bloc) => bloc
+        ..add(ZettelEditStarted(draftItem: draftItem))
+        ..add(const ZettelEditSubmitted(title: 'Titre', body: 'Corps.')),
+      expect: () => [
+        ZettelEditReady(draft: draftItem),
+        const ZettelEditSaving(),
+        const ZettelEditError('Écriture impossible'),
+      ],
     );
 
     blocTest<ZettelEditBloc, ZettelEditState>(

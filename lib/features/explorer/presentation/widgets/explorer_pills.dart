@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/serre_tokens.dart';
 // Cross-feature imports — documented exception: the sync status pill reads
 // the cubit and entities exposed by the sync feature (same source of truth
@@ -56,9 +58,8 @@ class _SeedlingPill extends StatelessWidget {
           key: const Key('explorer-seedling-pill'),
           dotColor: tokens.ambre,
           label: '$count semis',
-          // TODO(serre-chantier-3): navigate to the « Pépinière » review
-          // screen (`/pepiniere`) once chantier 3 adds its route.
-          onTap: null,
+          // Full-screen review pushed above the shell, like `/settings`.
+          onTap: () => context.push(AppRoutes.pepiniere),
         );
       },
     );

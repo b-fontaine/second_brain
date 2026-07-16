@@ -176,6 +176,10 @@ void main() {
           path: '/settings',
           builder: (_, _) => const Scaffold(body: Text('page:réglages')),
         ),
+        GoRoute(
+          path: '/pepiniere',
+          builder: (_, _) => const Scaffold(body: Text('page:pépinière')),
+        ),
       ],
     );
     await tester.pumpWidget(
@@ -473,6 +477,16 @@ void main() {
       await pumpExplorer(tester);
 
       expect(find.byKey(const Key('explorer-seedling-pill')), findsNothing);
+    });
+
+    testWidgets('the seedling pill opens the Pépinière review', (tester) async {
+      stubStates(seedlings: 3);
+      await pumpExplorer(tester);
+
+      await tester.tap(find.byKey(const Key('explorer-seedling-pill')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('page:pépinière'), findsOneWidget);
     });
 
     testWidgets('shows « À jour » when synced and online', (tester) async {

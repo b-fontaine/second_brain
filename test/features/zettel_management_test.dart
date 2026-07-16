@@ -28,9 +28,8 @@ void main() {
       await theAppIsRunningWithAConfiguredVault(tester);
     }
 
-    testWidgets('''Creating a new zettel assigns a timestamp id''', (
-      tester,
-    ) async {
+    testWidgets('''Creating a new zettel assigns a timestamp id''',
+        (tester) async {
       await bddSetUp(tester);
       await iTapTheNewNoteButton(tester);
       await iEnterAsTheNoteTitle(tester, 'Ma première idée');
@@ -57,9 +56,8 @@ void main() {
       await iOpenTheZettelTitled(tester, 'Concept A');
       await iSeeTheNoteReadingPanelWithTitle(tester, 'Concept A');
     });
-    testWidgets('''Captured content lands in the inbox first''', (
-      tester,
-    ) async {
+    testWidgets('''Captured content lands in the inbox first''',
+        (tester) async {
       await bddSetUp(tester);
       await aRawCaptureWasIngested(tester, 'Texte brut capturé');
       await theInboxContainsPendingItem(tester, 1);
