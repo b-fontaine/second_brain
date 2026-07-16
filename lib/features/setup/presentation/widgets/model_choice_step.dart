@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/theme/serre_tokens.dart';
+import '../../../../core/widgets/status_pill.dart';
 import '../../../assistant/domain/entities/ai_model_option.dart';
 import '../../../assistant/presentation/bloc/model_status_cubit.dart';
 import '../../../assistant/presentation/bloc/model_status_state.dart';
@@ -148,6 +150,7 @@ class _ModelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.extension<SerreTokens>()!;
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -166,9 +169,9 @@ class _ModelCard extends StatelessWidget {
                 if (option.recommended)
                   Padding(
                     padding: const EdgeInsets.only(left: 8),
-                    child: Chip(
-                      label: const Text('Recommandé'),
-                      visualDensity: VisualDensity.compact,
+                    child: StatusPill(
+                      label: 'Recommandé',
+                      dotColor: tokens.accent,
                     ),
                   ),
                 Padding(
