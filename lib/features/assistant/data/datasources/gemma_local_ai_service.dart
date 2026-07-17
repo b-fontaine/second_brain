@@ -4,38 +4,76 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:injectable/injectable.dart';
 
 import '../../../../core/error/exceptions.dart';
+import '../../domain/entities/ai_model_option.dart';
+import '../../domain/repositories/ai_model_preferences.dart';
 import '../../domain/services/local_ai_service.dart';
 
-/// Catalog of the on-device LLM models supported by the app.
-///
-/// The default model is Qwen3 0.6B: public HuggingFace repository (no token
-/// required), `.litertlm` format so it runs on every supported platform
-/// (Android arm64, iOS, macOS Apple Silicon, Windows x64, Linux).
-class GemmaModelCatalog {
-  const GemmaModelCatalog._();
+/// Everything [GemmaLocalAiService] needs to install one on-device model.
+class GemmaModelCatalogEntry {
+  const GemmaModelCatalogEntry({
+    required this.url,
+    required this.fileName,
+    required this.modelType,
+  });
 
-  /// Qwen3 0.6B — ~586 MB, public repo, thinking + function calling.
   /// Canonical HF URL (must use `/resolve/`, never `/blob/`).
-  static const String defaultModelUrl =
-      'https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/'
-      'Qwen3-0.6B.litertlm';
+  final String url;
 
   /// File name used by flutter_gemma as the installed model identifier.
-  static const String defaultModelFileName = 'Qwen3-0.6B.litertlm';
+  final String fileName;
 
-  static const ModelType defaultModelType = ModelType.qwen3;
+  final ModelType modelType;
+}
 
-  /// Gemma 3 1B — ~0.5 GB, better French quality, but the HF repo is GATED:
-  /// requires a HuggingFace token passed to `FlutterGemma.initialize` and a
-  /// one-time "Request access" on the repository page.
-  static const String gemma3AlternativeUrl =
-      'https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/'
-      'Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm';
+/// Catalog of the on-device LLM models supported by the app, keyed by the
+/// domain-level [AiModelId] so the rest of the app never has to know about
+/// flutter_gemma types or HuggingFace URLs.
+///
+/// All three models are public HuggingFace repositories (no token
+/// required), `.litertlm` format so they run on every supported platform
+/// (Android arm64, iOS, macOS Apple Silicon, Windows x64, Linux).
+abstract final class GemmaModelCatalog {
+  const GemmaModelCatalog._();
 
-  static const String gemma3AlternativeFileName =
-      'Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm';
+  /// Qwen3 0.6B — ~586 MB, thinking + function calling, text only. Default:
+  /// smallest download, runs comfortably on every supported device.
+  static const qwen3 = GemmaModelCatalogEntry(
+    url:
+        'https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/'
+        'Qwen3-0.6B.litertlm',
+    fileName: 'Qwen3-0.6B.litertlm',
+    modelType: ModelType.qwen3,
+  );
 
-  static const ModelType gemma3AlternativeType = ModelType.gemmaIt;
+  /// Gemma 4 E2B — ~2.6 GB, multimodal (text/image/audio), function
+  /// calling + thinking mode, better French quality. Public repo.
+  static const gemma4E2B = GemmaModelCatalogEntry(
+    url:
+        'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/'
+        'resolve/main/gemma-4-E2B-it.litertlm',
+    fileName: 'gemma-4-E2B-it.litertlm',
+    modelType: ModelType.gemma4,
+  );
+
+  /// Gemma 4 E4B — ~3.7 GB, same capabilities as E2B, larger and slower.
+  static const gemma4E4B = GemmaModelCatalogEntry(
+    url:
+        'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/'
+        'resolve/main/gemma-4-E4B-it.litertlm',
+    fileName: 'gemma-4-E4B-it.litertlm',
+    modelType: ModelType.gemma4,
+  );
+
+  static const Map<AiModelId, GemmaModelCatalogEntry> byId = {
+    AiModelId.qwen3: qwen3,
+    AiModelId.gemma4E2B: gemma4E2B,
+    AiModelId.gemma4E4B: gemma4E4B,
+  };
+
+  /// The model to use absent an explicit user choice (first run).
+  static const AiModelId defaultModelId = AiModelId.qwen3;
+
+  static GemmaModelCatalogEntry entryFor(AiModelId id) => byId[id]!;
 }
 
 /// [LocalAiService] backed by flutter_gemma (LiteRT-LM engine).
@@ -44,7 +82,9 @@ class GemmaModelCatalog {
 /// to have been awaited in `main()` before any call (see DECISIONS.md).
 @LazySingleton(as: LocalAiService)
 class GemmaLocalAiService implements LocalAiService {
-  GemmaLocalAiService();
+  GemmaLocalAiService(this._preferences);
+
+  final AiModelPreferences _preferences;
 
   /// Context window (input + output). `.litertlm` models require >= 1024.
   static const int _contextWindowTokens = 2048;
@@ -66,14 +106,8 @@ class GemmaLocalAiService implements LocalAiService {
   @override
   Future<bool> isModelReady() async {
     try {
-      if (await FlutterGemma.isModelInstalled(
-        GemmaModelCatalog.defaultModelFileName,
-      )) {
-        return true;
-      }
-      return FlutterGemma.isModelInstalled(
-        GemmaModelCatalog.gemma3AlternativeFileName,
-      );
+      final entry = await _selectedEntry();
+      return await FlutterGemma.isModelInstalled(entry.fileName);
     } catch (error) {
       throw AiException(_describeError(error));
     }
@@ -85,12 +119,13 @@ class GemmaLocalAiService implements LocalAiService {
 
     Future<void> run() async {
       try {
+        final entry = await _selectedEntry();
         // install() is idempotent: an already-installed model skips the
         // download and is simply (re)set as the active inference model.
         await FlutterGemma.installModel(
-          modelType: GemmaModelCatalog.defaultModelType,
+          modelType: entry.modelType,
           fileType: ModelFileType.litertlm,
-        ).fromNetwork(GemmaModelCatalog.defaultModelUrl).withProgress((
+        ).fromNetwork(entry.url).withProgress((
           int percent,
         ) {
           if (!controller.isClosed) {
@@ -99,6 +134,11 @@ class GemmaLocalAiService implements LocalAiService {
             );
           }
         }).install();
+        // The just-installed model becomes the SDK's active model, but the
+        // cached `_model` (if any) still points at whichever model was
+        // active before — invalidate it so the next generation re-resolves
+        // to the newly installed one instead of silently reusing the old.
+        await _invalidateActiveModel();
         if (!controller.isClosed) {
           controller.add(const ModelDownloadProgress(1.0));
         }
@@ -159,13 +199,20 @@ class GemmaLocalAiService implements LocalAiService {
 
   @override
   Future<void> dispose() async {
+    await _invalidateActiveModel();
+  }
+
+  /// Closes and drops the cached [_model] so the next [_obtainModel] call
+  /// re-fetches the SDK's current active model instead of reusing a stale
+  /// reference (used on shutdown and after installing a different model).
+  Future<void> _invalidateActiveModel() async {
     final model = _model;
     _model = null;
     if (model != null) {
       try {
         await model.close();
       } catch (_) {
-        // Native teardown failures must not crash app shutdown.
+        // Native teardown failures must not crash app shutdown/switching.
       }
     }
   }
@@ -228,6 +275,15 @@ class GemmaLocalAiService implements LocalAiService {
     } catch (error) {
       throw AiException(_describeError(error));
     }
+  }
+
+  /// The catalog entry for the user's chosen model, or the default
+  /// ([GemmaModelCatalog.defaultModelId]) when none was chosen yet.
+  Future<GemmaModelCatalogEntry> _selectedEntry() async {
+    final selected = await _preferences.getSelectedModel();
+    return GemmaModelCatalog.entryFor(
+      selected ?? GemmaModelCatalog.defaultModelId,
+    );
   }
 
   String _prefixSystemPrompt(String prompt, String? systemPrompt) {

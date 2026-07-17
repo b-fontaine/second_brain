@@ -8,6 +8,7 @@ import '../../../../core/usecases/usecase.dart';
 // Cross-feature imports — documented exception: the models screen of the
 // onboarding/settings unifies the two on-device downloads the app needs,
 // which live in the capture (STT) and assistant (LLM) features.
+import '../../../assistant/domain/entities/ai_model_option.dart';
 import '../../../assistant/domain/repositories/assistant_repository.dart';
 import '../../../capture/domain/services/transcription_service.dart';
 import '../../../capture/domain/usecases/ensure_stt_model.dart';
@@ -164,6 +165,33 @@ class ModelsInstallCubit extends Cubit<ModelsInstallState> {
     }
     if (isClosed) return;
     _emitAssistant(const ModelInstallInfo.ready());
+  }
+
+  /// The assistant model currently selected, or `null` before any choice
+  /// (falls back to Qwen3 when actually installing — see
+  /// `GemmaModelCatalog.defaultModelId`).
+  Future<AiModelId?> currentAssistantSelection() async {
+    final result = await _assistantRepository.getSelectedModel();
+    return result.fold((_) => null, (id) => id);
+  }
+
+  /// Persists [modelId] as the assistant's chosen model, then (re)downloads
+  /// it — including when a different model was already installed: resets
+  /// the phase first so [downloadAssistant]'s "already ready" guard does
+  /// not block the switch.
+  Future<void> selectAssistantModel(AiModelId modelId) async {
+    // Guards against a double-tap on two choice tiles racing each other
+    // into two concurrent downloads.
+    if (state.assistant.isDownloading) return;
+    final result = await _assistantRepository.selectModel(modelId);
+    final failure = result.fold((failure) => failure, (_) => null);
+    if (failure != null) {
+      if (!isClosed) _emitAssistant(ModelInstallInfo.failed(failure.message));
+      return;
+    }
+    if (isClosed) return;
+    _emitAssistant(const ModelInstallInfo.notInstalled());
+    await downloadAssistant();
   }
 
   void _emitVoice(ModelInstallInfo info) =>

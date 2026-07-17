@@ -6,8 +6,10 @@ import '../../../../core/error/failures.dart';
 import '../../../zettel/domain/entities/zettel.dart';
 import '../../../zettel/domain/entities/zettel_id.dart';
 import '../../../zettel/domain/repositories/zettel_repository.dart';
+import '../../domain/entities/ai_model_option.dart';
 import '../../domain/entities/assistant_answer.dart';
 import '../../domain/entities/zettel_draft.dart';
+import '../../domain/repositories/ai_model_preferences.dart';
 import '../../domain/repositories/assistant_repository.dart';
 import '../../domain/services/local_ai_service.dart';
 import '../datasources/vault_rag_index.dart';
@@ -21,11 +23,13 @@ class GemmaAssistantRepository implements AssistantRepository {
     this._localAiService,
     this._ragIndex,
     this._zettelRepository,
+    this._modelPreferences,
   );
 
   final LocalAiService _localAiService;
   final VaultRagIndex _ragIndex;
   final ZettelRepository _zettelRepository;
+  final AiModelPreferences _modelPreferences;
 
   static const int _suggestedLinksPerDraft = 3;
   static const int _contextZettels = 5;
@@ -36,6 +40,7 @@ class GemmaAssistantRepository implements AssistantRepository {
   static const String draftSystemPrompt = '''
 Tu es un assistant de prise de notes selon la méthode Zettelkasten.
 Découpe le texte fourni par l'utilisateur en notes ATOMIQUES : une seule idée par note, avec un corps autonome, compréhensible sans lire les autres notes.
+Réponds toujours en français, quelle que soit la langue du texte fourni.
 Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour, au format exact :
 {"notes":[{"title":"...","body":"...","tags":["..."]}]}
 Contraintes :
@@ -75,6 +80,29 @@ Réponds en français, en Markdown.''';
       yield Left(AiFailure(exception.message));
     } catch (error) {
       yield Left(AiFailure('Échec du téléchargement du modèle : $error'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, AiModelId?>> getSelectedModel() async {
+    try {
+      return Right(await _modelPreferences.getSelectedModel());
+    } catch (error) {
+      return Left(
+        AiFailure('Impossible de lire le modèle sélectionné : $error'),
+      );
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> selectModel(AiModelId modelId) async {
+    try {
+      await _modelPreferences.setSelectedModel(modelId);
+      return const Right(unit);
+    } catch (error) {
+      return Left(
+        AiFailure('Impossible d\'enregistrer le modèle sélectionné : $error'),
+      );
     }
   }
 

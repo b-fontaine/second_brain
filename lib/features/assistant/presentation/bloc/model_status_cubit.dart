@@ -3,6 +3,7 @@ import 'dart:ffi' show Abi;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 
+import '../../domain/entities/ai_model_option.dart';
 import '../../domain/repositories/assistant_repository.dart';
 import 'model_status_state.dart';
 
@@ -56,6 +57,27 @@ class ModelStatusCubit extends Cubit<ModelStatusState> {
         ready ? const ModelStatusReady() : const ModelStatusNotInstalled(),
       ),
     );
+  }
+
+  /// The model currently selected, or `null` before any explicit choice.
+  Future<AiModelId?> currentSelection() async {
+    final result = await _repository.getSelectedModel();
+    return result.fold((_) => null, (id) => id);
+  }
+
+  /// Persists [modelId] as the user's choice, then downloads it.
+  ///
+  /// Used by the onboarding model-choice screen and the settings screen;
+  /// a selection failure (disk error) surfaces as [ModelStatusError]
+  /// without attempting the download.
+  Future<void> selectAndDownload(AiModelId modelId) async {
+    final result = await _repository.selectModel(modelId);
+    final failure = result.fold((failure) => failure, (_) => null);
+    if (failure != null) {
+      if (!isClosed) emit(ModelStatusError(failure.message));
+      return;
+    }
+    await download();
   }
 
   /// Downloads and installs the on-device model, reporting progress,

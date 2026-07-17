@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:second_brain/core/error/failures.dart';
+import 'package:second_brain/features/assistant/domain/entities/ai_model_option.dart';
 import 'package:second_brain/features/assistant/domain/repositories/assistant_repository.dart';
 import 'package:second_brain/features/assistant/presentation/bloc/model_status_cubit.dart';
 import 'package:second_brain/features/assistant/presentation/bloc/model_status_state.dart';
@@ -139,6 +140,51 @@ void main() {
         ModelStatusDownloading(1.0),
         ModelStatusError(ModelStatusCubit.modelMissingAfterInstallMessage),
       ],
+    );
+  });
+
+  group('ModelStatusCubit.selectAndDownload', () {
+    blocTest<ModelStatusCubit, ModelStatusState>(
+      'persists the choice then downloads it',
+      setUp: () {
+        when(
+          () => repository.selectModel(AiModelId.gemma4E2B),
+        ).thenAnswer((_) async => const Right(unit));
+        when(() => repository.installModel()).thenAnswer(
+          (_) => Stream.fromIterable(const <Either<Failure, double>>[
+            Right(1.0),
+          ]),
+        );
+        when(
+          () => repository.isReady(),
+        ).thenAnswer((_) async => const Right(true));
+      },
+      build: buildCubit,
+      act: (cubit) => cubit.selectAndDownload(AiModelId.gemma4E2B),
+      expect: () => const [
+        ModelStatusDownloading(0),
+        ModelStatusDownloading(1.0),
+        ModelStatusReady(),
+      ],
+      verify: (_) {
+        verify(() => repository.selectModel(AiModelId.gemma4E2B)).called(1);
+      },
+    );
+
+    blocTest<ModelStatusCubit, ModelStatusState>(
+      'emits an error and never downloads when the selection cannot be '
+      'persisted',
+      setUp: () {
+        when(() => repository.selectModel(AiModelId.qwen3)).thenAnswer(
+          (_) async => const Left(AiFailure('Disque plein')),
+        );
+      },
+      build: buildCubit,
+      act: (cubit) => cubit.selectAndDownload(AiModelId.qwen3),
+      expect: () => const [ModelStatusError('Disque plein')],
+      verify: (_) {
+        verifyNever(() => repository.installModel());
+      },
     );
   });
 }

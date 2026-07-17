@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/serre_tokens.dart';
+import '../../../../core/widgets/status_pill.dart';
+import '../../../assistant/domain/entities/ai_model_option.dart';
 import '../bloc/models_install_cubit.dart';
 
 /// Models screen content: per-model install status and download progress
@@ -40,13 +42,22 @@ class ModelsInstallView extends StatefulWidget {
 class _ModelsInstallViewState extends State<ModelsInstallView> {
   late final ModelsInstallCubit _cubit;
 
+  // Fetched once, not on every BlocBuilder rebuild (e.g. a download-progress
+  // tick), and refreshed only when the assistant model actually changes.
+  Future<AiModelId?>? _assistantSelection;
+
   @override
   void initState() {
     super.initState();
     _cubit = widget.cubit ?? getIt<ModelsInstallCubit>();
+    _assistantSelection = _cubit.currentAssistantSelection();
     // Refresh the installed/not-installed statuses; init() never clobbers
     // a download already running in the background.
     _cubit.init();
+  }
+
+  void _refreshAssistantSelection() {
+    setState(() => _assistantSelection = _cubit.currentAssistantSelection());
   }
 
   void _leave() {
@@ -63,7 +74,11 @@ class _ModelsInstallViewState extends State<ModelsInstallView> {
     final theme = Theme.of(context);
     return BlocProvider.value(
       value: _cubit,
-      child: BlocBuilder<ModelsInstallCubit, ModelsInstallState>(
+      child: BlocConsumer<ModelsInstallCubit, ModelsInstallState>(
+        listenWhen: (previous, current) =>
+            previous.assistant.phase != ModelInstallPhase.ready &&
+            current.assistant.phase == ModelInstallPhase.ready,
+        listener: (context, _) => _refreshAssistantSelection(),
         builder: (context, state) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -111,18 +126,10 @@ class _ModelsInstallViewState extends State<ModelsInstallView> {
                     context.read<ModelsInstallCubit>().downloadVoice(),
               ),
               const SizedBox(height: 12),
-              _ModelCard(
+              _AssistantModelCard(
                 key: const Key('assistant-model-card'),
-                icon: Icons.psychology_outlined,
-                title: 'Assistant local',
-                subtitle:
-                    'Organisation des captures et réponses de l’assistant — '
-                    '≈ 600 Mo',
                 info: state.assistant,
-                downloadKey: const Key('assistant-model-download'),
-                progressKey: const Key('assistant-model-progress'),
-                onDownload: () =>
-                    context.read<ModelsInstallCubit>().downloadAssistant(),
+                selection: _assistantSelection,
               ),
               if (widget.showSetupActions) ...[
                 const SizedBox(height: 24),
@@ -305,5 +312,184 @@ class _ModelCard extends StatelessWidget {
           ),
         ];
     }
+  }
+}
+
+/// The assistant LLM card: same identity + phase-driven footer as
+/// [_ModelCard], but — unlike the single-button voice card — offers a
+/// choice of on-device models (see [AiModelCatalog]) instead of one fixed
+/// download, so it can be re-picked here and from « Réglages → Modèles ».
+class _AssistantModelCard extends StatelessWidget {
+  const _AssistantModelCard({
+    super.key,
+    required this.info,
+    required this.selection,
+  });
+
+  final ModelInstallInfo info;
+
+  /// Currently selected model, cached by the parent state (not re-fetched
+  /// on every rebuild — see `_ModelsInstallViewState._assistantSelection`).
+  final Future<AiModelId?>? selection;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<SerreTokens>()!;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.psychology_outlined, color: tokens.accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Assistant local', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Organisation des captures et réponses de l’assistant',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: tokens.sub,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ..._buildStatus(context, theme, tokens),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildStatus(
+    BuildContext context,
+    ThemeData theme,
+    SerreTokens tokens,
+  ) {
+    switch (info.phase) {
+      case ModelInstallPhase.checking:
+        return [
+          Text(
+            'Vérification…',
+            style: theme.textTheme.bodySmall?.copyWith(color: tokens.sub),
+          ),
+        ];
+      case ModelInstallPhase.unsupported:
+        return [
+          Text(
+            info.message ?? ModelsInstallCubit.assistantUnsupportedMessage,
+            style: theme.textTheme.bodySmall?.copyWith(color: tokens.sub),
+          ),
+        ];
+      case ModelInstallPhase.downloading:
+        final percent = (info.progress.clamp(0.0, 1.0) * 100).round();
+        return [
+          Row(
+            children: [
+              Expanded(
+                child: LinearProgressIndicator(
+                  key: const Key('assistant-model-progress'),
+                  value: info.progress.clamp(0.0, 1.0),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text('$percent %', style: theme.textTheme.labelMedium),
+            ],
+          ),
+        ];
+      case ModelInstallPhase.notInstalled:
+      case ModelInstallPhase.ready:
+      case ModelInstallPhase.failed:
+        return [
+          if (info.phase == ModelInstallPhase.failed) ...[
+            Text(
+              info.message ?? ModelsInstallCubit.downloadFailedMessage,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          FutureBuilder<AiModelId?>(
+            future: selection,
+            builder: (context, snapshot) {
+              final active = snapshot.data;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final option in AiModelCatalog.options) ...[
+                    _AssistantModelChoiceTile(
+                      option: option,
+                      isActive: active == option.id,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              );
+            },
+          ),
+        ];
+    }
+  }
+}
+
+/// One selectable assistant model within [_AssistantModelCard]: label,
+/// size, one-line description, and either an « Actif » badge or a button
+/// to switch to it.
+class _AssistantModelChoiceTile extends StatelessWidget {
+  const _AssistantModelChoiceTile({
+    required this.option,
+    required this.isActive,
+  });
+
+  final AiModelOption option;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<SerreTokens>()!;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${option.label} · ${option.sizeLabel}',
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                option.description,
+                style: theme.textTheme.bodySmall?.copyWith(color: tokens.sub),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (isActive)
+          StatusPill(label: 'Actif', dotColor: tokens.accent)
+        else
+          OutlinedButton(
+            key: Key('assistant-model-choice-${option.id.name}'),
+            onPressed: () => context
+                .read<ModelsInstallCubit>()
+                .selectAssistantModel(option.id),
+            child: const Text('Utiliser'),
+          ),
+      ],
+    );
   }
 }
