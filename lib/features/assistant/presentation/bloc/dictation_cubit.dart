@@ -14,7 +14,7 @@ class DictationCubit extends Cubit<DictationState> {
 
   static const modelMissingMessage =
       'Le modèle de dictée n’est pas installé. '
-      'Rendez-vous dans l’écran Capture pour le télécharger.';
+      'Lancez une dictée depuis le bouton Semer pour le télécharger.';
 
   static const dictationFailedMessage =
       'La dictée a échoué. Vérifiez l’accès au microphone.';

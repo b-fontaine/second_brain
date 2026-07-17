@@ -4,6 +4,10 @@ import 'package:injectable/injectable.dart';
 
 import '../../../../core/usecases/usecase.dart';
 import '../../../setup/domain/usecases/get_vault_config.dart';
+// Cross-feature import — documented exception: the « Jardin » card of the
+// settings shows a simple vault statistic (note count) read through the
+// zettel domain use case.
+import '../../../zettel/domain/usecases/get_all_zettels.dart';
 import '../../domain/entities/sync_status.dart';
 import '../../domain/repositories/git_sync_repository.dart';
 import '../../domain/usecases/force_synchronize.dart';
@@ -28,6 +32,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     this._updateGitToken,
     this._forceSynchronize,
     this._repository,
+    this._getAllZettels,
   ) : super(const SettingsLoading());
 
   final GetVaultConfig _getVaultConfig;
@@ -36,6 +41,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   final UpdateGitToken _updateGitToken;
   final ForceSynchronize _forceSynchronize;
   final GitSyncRepository _repository;
+  final GetAllZettels _getAllZettels;
 
   /// Reads the vault configuration, the token presence flag (never the
   /// token itself) and the current sync status.
@@ -52,12 +58,20 @@ class SettingsCubit extends Cubit<SettingsState> {
           (_) => null,
           (status) => status,
         );
+        // Simple garden statistic; unavailable (null) when the vault
+        // cannot be read — the card then hides the count.
+        final noteCount = (await _getAllZettels(const NoParams())).fold<int?>(
+          (_) => null,
+          (zettels) => zettels.length,
+        );
         if (isClosed) return;
         emit(
           SettingsLoaded(
             remoteUrl: config?.remoteUrl,
             hasStoredToken: hasToken,
             syncStatus: status,
+            vaultPath: config?.vaultPath,
+            noteCount: noteCount,
           ),
         );
       },
@@ -113,6 +127,8 @@ class SettingsCubit extends Cubit<SettingsState> {
         remoteUrl: current.remoteUrl,
         hasStoredToken: current.hasStoredToken,
         syncStatus: status,
+        vaultPath: current.vaultPath,
+        noteCount: current.noteCount,
       ),
     );
   }

@@ -5,8 +5,10 @@ import '../../features/assistant/presentation/pages/assistant_chat_page.dart';
 import '../../features/capture/presentation/pages/pepiniere_page.dart';
 import '../../features/explorer/presentation/pages/explorer_page.dart';
 import '../../features/setup/domain/repositories/setup_repository.dart';
+import '../../features/setup/presentation/pages/models_page.dart';
 import '../../features/setup/presentation/pages/setup_page.dart';
 import '../../features/sync/presentation/pages/settings_page.dart';
+import '../../features/sync/presentation/widgets/sync_shell_scope.dart';
 import '../../features/zettel/domain/entities/inbox_item.dart';
 import '../../features/zettel/presentation/pages/zettel_detail_page.dart';
 import '../../features/zettel/presentation/pages/zettel_edit_page.dart';
@@ -22,6 +24,10 @@ abstract final class AppRoutes {
   static const setup = '/setup';
   static const newNote = '/new';
   static const settings = '/settings';
+
+  /// Models screen (voice + assistant downloads): last onboarding step
+  /// content, also reachable from « Réglages → Modèles ».
+  static const models = '/models';
 
   /// « Pépinière — brouillons à valider » : review of the pending captures.
   static const pepiniere = '/pepiniere';
@@ -83,6 +89,10 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const SettingsPage(),
     ),
     GoRoute(
+      path: AppRoutes.models,
+      builder: (context, state) => const ModelsPage(),
+    ),
+    GoRoute(
       path: AppRoutes.pepiniere,
       builder: (context, state) => const PepinierePage(),
       routes: [
@@ -119,13 +129,18 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
     ShellRoute(
-      builder: (context, state, child) => AdaptiveScaffold(
-        selectedIndex: _tabIndexFor(state.matchedLocation),
-        onDestinationSelected: (index) => context.go(shellTabPaths[index]),
-        // `/capture` lands here as `/?semer=1`; the scaffold opens the
-        // seed dial once per rising edge of this flag.
-        openSeedDial: state.uri.queryParameters['semer'] == '1',
-        child: child,
+      // One shared SyncStatusCubit for the whole shell (AppBar indicator,
+      // Explorer pill, rail dot) plus the conflict toast; the offline
+      // banner sits above the tab content, under the common AppBar.
+      builder: (context, state, child) => SyncShellScope(
+        child: AdaptiveScaffold(
+          selectedIndex: _tabIndexFor(state.matchedLocation),
+          onDestinationSelected: (index) => context.go(shellTabPaths[index]),
+          // `/capture` lands here as `/?semer=1`; the scaffold opens the
+          // seed dial once per rising edge of this flag.
+          openSeedDial: state.uri.queryParameters['semer'] == '1',
+          child: SyncOfflineBanner(child: child),
+        ),
       ),
       routes: [
         GoRoute(

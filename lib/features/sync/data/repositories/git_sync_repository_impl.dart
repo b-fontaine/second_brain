@@ -54,6 +54,10 @@ class GitSyncRepositoryImpl implements GitSyncRepository {
   SyncStatus _current = const SyncStatus(state: SyncState.localOnly);
   DateTime? _lastSyncedAt;
 
+  /// Conflicts resolved local-wins by the most recent pull (their remote
+  /// copies live under `conflicts/`). Cleared by the next clean pull.
+  int _conflictCount = 0;
+
   @override
   Future<Either<Failure, Unit>> cloneRemote({
     required String remoteUrl,
@@ -65,6 +69,7 @@ class GitSyncRepositoryImpl implements GitSyncRepository {
       // Persist the token first so later synchronizations can authenticate.
       await _secureStorage.write(key: tokenKey, value: token);
       await _git.clone(url: remoteUrl, path: path, token: token);
+      _conflictCount = 0;
       _lastSyncedAt = _clock.now();
       _emit(SyncStatus(state: SyncState.upToDate, lastSyncedAt: _lastSyncedAt));
       return const Right(unit);
@@ -82,6 +87,7 @@ class GitSyncRepositoryImpl implements GitSyncRepository {
       if (!await _git.isRepository(path)) {
         await _git.init(path);
       }
+      _conflictCount = 0;
       _emit(const SyncStatus(state: SyncState.localOnly));
       return const Right(unit);
     } on GitException catch (e) {
@@ -142,12 +148,15 @@ class GitSyncRepositoryImpl implements GitSyncRepository {
           state: SyncState.syncing,
           pendingCommits: _current.pendingCommits,
           lastSyncedAt: _lastSyncedAt,
+          conflictCount: _conflictCount,
         ),
       );
 
       // Pull = fetch + fast-forward-or-merge, conflicts resolved local-wins
-      // with the remote copies saved beforehand.
+      // with the remote copies saved beforehand. The conflict count feeds
+      // the amber settings card and the shell toast; a clean pull clears it.
       final pullResult = await _git.pull(path: path, token: token);
+      _conflictCount = pullResult.resolvedConflicts.length;
       if (pullResult.updated) {
         _pullChangeNotifier.notifyPulledChanges();
       }
@@ -263,6 +272,7 @@ class GitSyncRepositoryImpl implements GitSyncRepository {
       state: ahead > 0 ? SyncState.pendingPush : SyncState.upToDate,
       pendingCommits: ahead,
       lastSyncedAt: _lastSyncedAt,
+      conflictCount: _conflictCount,
     );
   }
 
@@ -278,6 +288,7 @@ class GitSyncRepositoryImpl implements GitSyncRepository {
         pendingCommits: _current.pendingCommits,
         lastSyncedAt: _lastSyncedAt,
         message: message,
+        conflictCount: _conflictCount,
       ),
     );
   }

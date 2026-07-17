@@ -53,6 +53,7 @@ Briefs détaillés dans `docs/research/*.md` — les lire avant d'implémenter l
 | zettel | `ZettelEditPage` en mode brouillon (préremplie, la sauvegarde repique) | `/pepiniere/edit` (`InboxItem` en `extra`, sinon redirect `/pepiniere`) |
 | assistant | `AssistantChatPage` | `/chat` |
 | sync | `SettingsPage` | `/settings` (engrenage : bas du rail desktop, barre de recherche Explorer mobile) |
+| setup | `ModelsPage` (réutilise `ModelsInstallView`, partagé avec la fin d'onboarding) | `/models` (« Réglages → Modèles ») |
 
 Navigation adaptive : barre basse 2 destinations + bouton Semer central
 (compact) / navigation rail + FAB Semer et raccourcis `⌘⇧D`/`⌘⇧V`/`⌘⇧O`
@@ -145,6 +146,92 @@ Navigation adaptive : barre basse 2 destinations + bouton Semer central
   provenance), compostage, pill « n semis » (navigation + mise à jour) et
   état vide. Les steps du flux drafts legacy ont été supprimés (couverture
   conservée par `capture_bloc_test`).
+
+## Note carrefour (chantier 4, plan Serre)
+
+- **Lecture** (`ZettelReadingView`) : mini-constellation 1-hop **statique** en
+  tête (`ZettelMiniConstellation` : centre + voisins en cercle déterministe,
+  arêtes droites, couleurs `ZettelMaturity` via `GraphPalette`, hauteur bornée
+  140, masquée sans lien, zéro animation — la grosse simulation reste à
+  l'Explorer) ; corps markdown en Literata ; section **« Racines — liens de la
+  note »** (entrants ← / sortants →, pastille de maturité par degré, tap →
+  détail) ; section **« Pollinisation — notes proches »** avec action
+  **Tisser** = append `[[id|titre]]` en fin de corps (le format du coffre n'a
+  pas de section références dédiée) + save + reload.
+- **Score affiché** : `VaultRagIndex.topKScored` expose le score — cosine
+  normalisé 0..1 côté sémantique (« Proximité N % »), null côté mots-clés
+  (« Suggestion n° rang », les scores TF n'étant pas comparables entre
+  requêtes). La signature de `topK` est préservée (délégation).
+- **Use cases suggestion** : `SuggestDraftLinks` (texte libre → suggestions
+  titrées, notes mortes filtrées à la résolution du titre) ;
+  `SuggestRelatedNotes` recomposé dessus, renvoie
+  `List<RelatedNoteSuggestion>` (id + titre résolu + score). Un seul
+  `getAllZettels` par chargement résout titres sortants + carte des degrés
+  (mêmes règles d'arêtes que l'Explorer : non orienté, réciproques
+  fusionnés, self-links et cibles mortes ignorés).
+- **Édition** (`ZettelEditPage`) : coloration markdown légère
+  (`MarkdownHighlightingController`, regex combinée en une passe : titres
+  `#`, `**gras**`, `[[wikilink]]` teintés accent) ; bandeau fleur « X semble
+  proche — tisser ? » pendant la frappe — debounce public
+  `ZettelEditPage.pollinationDebounce = 800 ms` (les tests le pompent
+  explicitement), requête anti-périmée, échec RAG silencieux, croix qui
+  désactive pour la session, Tisser insère au curseur.
+
+## Assistant sourcé (chantier 5, plan Serre)
+
+- **Domaine** : `AssistantSource{id, title, linkCount?}` +
+  `AssistantAnswer{text, sources, related}`. `sources` = notes **réellement
+  citées** `[[id]]` dans la réponse, dans l'ordre d'apparition (repli = tout
+  le contexte récupéré si le modèle ne cite rien — les chips ne disparaissent
+  jamais) ; `related` = récupérées non citées (« Et peut-être — notes proches
+  non citées »). Titres et degré non orienté résolus par un unique
+  `getAllZettels` par réponse ; degré null (coffre illisible) → icône
+  document à la place de la pastille.
+- **UI** : chips « Sources » titrées avec pastille `ZettelMaturity` → push
+  `/note/:id` ; bouton **« Semer cette synthèse »** sur chaque réponse →
+  `SowSynthesisCubit` réutilise `CaptureIntake.analyze/sow`
+  (`TextPayload(source: CaptureType.assistant)`) — SnackBar « Semé en
+  pépinière — brouillon à valider. » ; la Pépinière affiche la source
+  « Assistant ». Bulles restylées : utilisateur vert `arbre`, IA carte ivoire
+  `surface` + bordure `line` ; hint « Demander au jardin… ».
+- **`CaptureType.assistant`** ajouté (3 switches exhaustifs mis à jour) ;
+  pas de compat descendante : un binaire antérieur ne relit pas un inbox
+  JSON `type=assistant`.
+
+## Entretien (chantier 6, plan Serre)
+
+- **Setup 2 cartes** : « Nouveau jardin » (coffre local) et « Reprendre un
+  dépôt git » (URL + jeton en trousseau). Vérification = flux `SetupBloc`
+  existant affiché **inline** : « URL de dépôt invalide » en `errorText` du
+  champ URL, autres échecs (jeton refusé, clone) sous le champ jeton. Limite
+  assumée : pas de vrai test distant avant clonage
+  (`testRemoteConnection` exige un dépôt déjà cloné) — mention « la
+  connexion est vérifiée pendant le clonage ».
+- **Écran modèles** (`ModelsInstallView`, onboarding + `/models`) :
+  `ModelsInstallCubit` **@lazySingleton** (les téléchargements survivent à la
+  navigation — « Continuer en arrière-plan ») ; états par modèle
+  checking/notInstalled/downloading/ready/failed/unsupported, progression
+  **déterminée** (jamais d'indicateur indéterminé permanent). Limite
+  assumée : `SttModelStore.install()` n'expose qu'un flux global pour ses
+  2 paquets sherpa → une seule carte « Reconnaissance vocale ».
+  `ModelDownloadStep` supprimé ; libellé « Modèles locaux (optionnels) ».
+- **Réglages en cartes** : Synchronisation (résumé + statut + Forcer), Jeton
+  d'accès, Jardin (chemin du coffre + « N notes »), Modèles (→ `/models`),
+  plus **carte conflit ambre** quand `SyncStatus.conflictCount > 0`.
+- **Sync & conflits** : `SyncStatus.conflictCount/hasConflicts` ;
+  `GitSyncRepositoryImpl` consomme `pullResult.resolvedConflicts` (remplacé
+  à chaque pull, remis à zéro par un pull propre). Sémantique : conflits
+  résolus **local gagne** par le dernier pull, copies distantes sous
+  `conflicts/`.
+- **États sync globaux (shell)** : `SyncShellScope` (au niveau du router,
+  au-dessus d'`AdaptiveScaffold`) fournit UN `SyncStatusCubit` partagé
+  (indicator AppBar, pill Explorer, pastille rail — repli getIt hors shell)
+  + toast pédagogique de conflit sur front montant 0→n ;
+  `SyncOfflineBanner` statique (« n note(s) attendent la pluie —
+  synchronisation à la reconnexion » quand pendingPush hors ligne) ;
+  `SyncStatusDot` ambre/verte **uniquement** dans le rail étendu (≥ 840 dp)
+  — côté compact la pill sync de l'Explorer reste le seul indicateur près de
+  la recherche (anti-doublon).
 
 ## Config plateformes (cumul des briefs)
 

@@ -1,8 +1,12 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:second_brain/core/di/injection.dart';
+import 'package:second_brain/core/error/failures.dart';
+import 'package:second_brain/features/graph/domain/entities/related_note_suggestion.dart';
+import 'package:second_brain/features/graph/domain/usecases/suggest_draft_links.dart';
 import 'package:second_brain/features/zettel/domain/entities/inbox_item.dart';
 import 'package:second_brain/features/zettel/domain/entities/zettel.dart';
 import 'package:second_brain/features/zettel/domain/entities/zettel_id.dart';
@@ -12,12 +16,22 @@ import 'package:second_brain/features/zettel/presentation/pages/zettel_edit_page
 class MockZettelEditBloc extends MockBloc<ZettelEditEvent, ZettelEditState>
     implements ZettelEditBloc {}
 
+class MockSuggestDraftLinks extends Mock implements SuggestDraftLinks {}
+
 void main() {
   late MockZettelEditBloc bloc;
+  late MockSuggestDraftLinks suggestDraftLinks;
+
+  setUpAll(() {
+    registerFallbackValue(const SuggestDraftLinksParams(text: ''));
+  });
 
   setUp(() {
     bloc = MockZettelEditBloc();
-    getIt.registerFactory<ZettelEditBloc>(() => bloc);
+    suggestDraftLinks = MockSuggestDraftLinks();
+    getIt
+      ..registerFactory<ZettelEditBloc>(() => bloc)
+      ..registerFactory<SuggestDraftLinks>(() => suggestDraftLinks);
   });
 
   tearDown(() async {
@@ -104,5 +118,113 @@ void main() {
         ),
       ),
     ).called(1);
+  });
+
+  group('fleur banner (pollination while typing)', () {
+    const suggestion = RelatedNoteSuggestion(
+      id: '20260202120000',
+      title: 'Concept B',
+    );
+    final bodyField = find.byKey(const Key('note-body-field'));
+    final banner = find.byKey(const Key('pollination-banner'));
+
+    Future<void> pumpNewNoteEditor(WidgetTester tester) async {
+      whenListen(
+        bloc,
+        Stream<ZettelEditState>.fromIterable([const ZettelEditReady()]),
+        initialState: const ZettelEditInitial(),
+      );
+      await tester.pumpWidget(const MaterialApp(home: ZettelEditPage()));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('appears after the debounce and weaves the wikilink at the '
+        'cursor', (tester) async {
+      when(() => suggestDraftLinks(any())).thenAnswer(
+        (_) async => const Right([suggestion]),
+      );
+      await pumpNewNoteEditor(tester);
+
+      await tester.enterText(bodyField, 'Les jardins partagés en ville');
+
+      // Nothing happens before the full debounce elapses.
+      await tester.pump(
+        ZettelEditPage.pollinationDebounce - const Duration(milliseconds: 1),
+      );
+      verifyNever(() => suggestDraftLinks(any()));
+      expect(banner, findsNothing);
+
+      // The debounce fires, the index answers, the banner shows up.
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      verify(() => suggestDraftLinks(any())).called(1);
+      expect(banner, findsOneWidget);
+      expect(find.textContaining('Concept B'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('pollination-weave-button')));
+      await tester.pump();
+
+      final body = tester.widget<TextField>(bodyField).controller!.text;
+      expect(body, contains('[[20260202120000|Concept B]]'));
+      expect(banner, findsNothing);
+    });
+
+    testWidgets('every keystroke restarts the debounce', (tester) async {
+      when(() => suggestDraftLinks(any())).thenAnswer(
+        (_) async => const Right([suggestion]),
+      );
+      await pumpNewNoteEditor(tester);
+
+      await tester.enterText(bodyField, 'Premier jet');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.enterText(bodyField, 'Premier jet complété');
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // 1 s after the first keystroke but only 500 ms after the second:
+      // the lookup has not fired yet.
+      verifyNever(() => suggestDraftLinks(any()));
+
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      verify(() => suggestDraftLinks(any())).called(1);
+    });
+
+    testWidgets('the close button disables the suggestions for the session',
+        (tester) async {
+      when(() => suggestDraftLinks(any())).thenAnswer(
+        (_) async => const Right([suggestion]),
+      );
+      await pumpNewNoteEditor(tester);
+
+      await tester.enterText(bodyField, 'Les jardins partagés');
+      await tester.pump(ZettelEditPage.pollinationDebounce);
+      await tester.pump();
+      expect(banner, findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('pollination-dismiss-button')));
+      await tester.pump();
+      expect(banner, findsNothing);
+
+      // Typing again never re-triggers a lookup in this session.
+      await tester.enterText(bodyField, 'Les jardins partagés, suite');
+      await tester.pump(ZettelEditPage.pollinationDebounce);
+      await tester.pump();
+      expect(banner, findsNothing);
+      verify(() => suggestDraftLinks(any())).called(1);
+    });
+
+    testWidgets('stays silent when the index fails', (tester) async {
+      when(() => suggestDraftLinks(any())).thenAnswer(
+        (_) async => const Left(VaultFailure('index indisponible')),
+      );
+      await pumpNewNoteEditor(tester);
+
+      await tester.enterText(bodyField, 'Les jardins partagés');
+      await tester.pump(ZettelEditPage.pollinationDebounce);
+      await tester.pump();
+
+      expect(banner, findsNothing);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

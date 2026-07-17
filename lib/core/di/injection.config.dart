@@ -31,6 +31,8 @@ import '../../features/assistant/presentation/bloc/dictation_cubit.dart'
     as _i589;
 import '../../features/assistant/presentation/bloc/model_status_cubit.dart'
     as _i592;
+import '../../features/assistant/presentation/bloc/sow_synthesis_cubit.dart'
+    as _i229;
 import '../../features/capture/data/services/app_directories.dart' as _i636;
 import '../../features/capture/data/services/composite_ocr_service.dart'
     as _i833;
@@ -69,6 +71,7 @@ import '../../features/capture/presentation/bloc/seed_intake_cubit.dart'
     as _i486;
 import '../../features/explorer/presentation/bloc/seedling_count_cubit.dart'
     as _i387;
+import '../../features/graph/domain/usecases/suggest_draft_links.dart' as _i868;
 import '../../features/graph/domain/usecases/suggest_related_notes.dart'
     as _i65;
 import '../../features/graph/domain/usecases/watch_vault.dart' as _i399;
@@ -85,6 +88,8 @@ import '../../features/setup/domain/usecases/configure_local_only.dart' as _i34;
 import '../../features/setup/domain/usecases/configure_with_remote.dart'
     as _i828;
 import '../../features/setup/domain/usecases/get_vault_config.dart' as _i109;
+import '../../features/setup/presentation/bloc/models_install_cubit.dart'
+    as _i548;
 import '../../features/setup/presentation/bloc/setup_bloc.dart' as _i791;
 import '../../features/sync/application/sync_orchestrator.dart' as _i236;
 import '../../features/sync/data/datasources/git2dart_client.dart' as _i650;
@@ -302,6 +307,14 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i27.VaultWriteNotifier>(),
       ),
     );
+    gh.lazySingleton<_i548.ModelsInstallCubit>(
+      () => _i548.ModelsInstallCubit(
+        gh<_i228.TranscriptionService>(),
+        gh<_i320.EnsureSttModel>(),
+        gh<_i814.AssistantRepository>(),
+      ),
+      dispose: (i) => i.dispose(),
+    );
     gh.lazySingleton<_i22.GitSyncRepository>(
       () => _i700.GitSyncRepositoryImpl(
         gh<_i83.GitClient>(),
@@ -313,8 +326,8 @@ extension GetItInjectableX on _i174.GetIt {
       ),
       dispose: _i700.disposeGitSyncRepository,
     );
-    gh.factory<_i65.SuggestRelatedNotes>(
-      () => _i65.SuggestRelatedNotes(
+    gh.factory<_i868.SuggestDraftLinks>(
+      () => _i868.SuggestDraftLinks(
         gh<_i797.ZettelRepository>(),
         gh<_i835.VaultRagIndex>(),
       ),
@@ -359,13 +372,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i592.ModelStatusCubit>(
       () => _i592.ModelStatusCubit(gh<_i814.AssistantRepository>()),
     );
-    gh.factory<_i934.GraphCubit>(
-      () => _i934.GraphCubit(
-        gh<_i677.GetAllZettels>(),
-        gh<_i399.WatchVault>(),
-        gh<_i65.SuggestRelatedNotes>(),
-      ),
-    );
     gh.factory<_i548.PepiniereCubit>(
       () => _i548.PepiniereCubit(
         gh<_i626.InboxRepository>(),
@@ -389,19 +395,18 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i239.Clock>(),
       ),
     );
-    gh.factory<_i546.ZettelDetailCubit>(
-      () => _i546.ZettelDetailCubit(
-        gh<_i651.GetZettelById>(),
-        gh<_i312.GetBacklinks>(),
-        gh<_i879.DeleteZettel>(),
-      ),
-    );
     gh.factory<_i644.ZettelEditBloc>(
       () => _i644.ZettelEditBloc(
         gh<_i499.CreateZettel>(),
         gh<_i767.UpdateZettel>(),
         gh<_i651.GetZettelById>(),
         gh<_i309.TransplantSeedling>(),
+      ),
+    );
+    gh.factory<_i65.SuggestRelatedNotes>(
+      () => _i65.SuggestRelatedNotes(
+        gh<_i797.ZettelRepository>(),
+        gh<_i868.SuggestDraftLinks>(),
       ),
     );
     gh.lazySingleton<_i236.SyncOrchestrator>(
@@ -443,11 +448,31 @@ extension GetItInjectableX on _i174.GetIt {
         captureIntake: gh<_i18.CaptureIntake>(),
       ),
     );
+    gh.factory<_i546.ZettelDetailCubit>(
+      () => _i546.ZettelDetailCubit(
+        gh<_i651.GetZettelById>(),
+        gh<_i312.GetBacklinks>(),
+        gh<_i879.DeleteZettel>(),
+        gh<_i677.GetAllZettels>(),
+        gh<_i767.UpdateZettel>(),
+        gh<_i65.SuggestRelatedNotes>(),
+      ),
+    );
+    gh.factory<_i229.SowSynthesisCubit>(
+      () => _i229.SowSynthesisCubit(gh<_i18.CaptureIntake>()),
+    );
     gh.factory<_i486.SeedIntakeCubit>(
       () => _i486.SeedIntakeCubit(
         gh<_i18.CaptureIntake>(),
         gh<_i590.CaptureFromClipboard>(),
         gh<_i320.EnsureSttModel>(),
+      ),
+    );
+    gh.factory<_i934.GraphCubit>(
+      () => _i934.GraphCubit(
+        gh<_i677.GetAllZettels>(),
+        gh<_i399.WatchVault>(),
+        gh<_i65.SuggestRelatedNotes>(),
       ),
     );
     gh.factory<_i34.ConfigureLocalOnly>(
@@ -459,12 +484,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i109.GetVaultConfig>(
       () => _i109.GetVaultConfig(gh<_i329.SetupRepository>()),
     );
-    gh.factory<_i791.SetupBloc>(
-      () => _i791.SetupBloc(
-        gh<_i828.ConfigureWithRemote>(),
-        gh<_i34.ConfigureLocalOnly>(),
-      ),
-    );
     gh.factory<_i775.SettingsCubit>(
       () => _i775.SettingsCubit(
         gh<_i109.GetVaultConfig>(),
@@ -473,6 +492,13 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i719.UpdateGitToken>(),
         gh<_i376.ForceSynchronize>(),
         gh<_i22.GitSyncRepository>(),
+        gh<_i677.GetAllZettels>(),
+      ),
+    );
+    gh.factory<_i791.SetupBloc>(
+      () => _i791.SetupBloc(
+        gh<_i828.ConfigureWithRemote>(),
+        gh<_i34.ConfigureLocalOnly>(),
       ),
     );
     return this;

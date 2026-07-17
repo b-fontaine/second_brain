@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/theme/serre_tokens.dart';
 import '../bloc/chat_bloc.dart';
 import '../bloc/chat_event.dart';
 import '../bloc/chat_state.dart';
@@ -9,10 +10,12 @@ import '../bloc/dictation_cubit.dart';
 import '../bloc/dictation_state.dart';
 import '../bloc/model_status_cubit.dart';
 import '../bloc/model_status_state.dart';
+import '../bloc/sow_synthesis_cubit.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/chat_message_bubble.dart';
 import '../widgets/chat_suggestions.dart';
 import '../widgets/model_status_banner.dart';
+import '../widgets/sow_synthesis_listener.dart';
 
 /// RAG chat over the local vault (route `/chat`).
 ///
@@ -28,6 +31,7 @@ class AssistantChatPage extends StatelessWidget {
         BlocProvider(create: (_) => getIt<ChatBloc>()),
         BlocProvider(create: (_) => getIt<ModelStatusCubit>()..check()),
         BlocProvider(create: (_) => getIt<DictationCubit>()),
+        BlocProvider(create: (_) => getIt<SowSynthesisCubit>()),
       ],
       child: const _AssistantChatView(),
     );
@@ -87,7 +91,7 @@ class _AssistantChatViewState extends State<_AssistantChatView> {
 
   String _hintFor(ModelStatusState state) {
     return switch (state) {
-      ModelStatusReady() => 'Posez une question sur vos notes…',
+      ModelStatusReady() => 'Demander au jardin…',
       ModelStatusUnsupported() => 'Assistant indisponible sur cet appareil',
       ModelStatusDownloading() => 'Téléchargement du modèle en cours…',
       ModelStatusNotInstalled() => 'Téléchargez le modèle pour commencer',
@@ -101,47 +105,49 @@ class _AssistantChatViewState extends State<_AssistantChatView> {
     return Scaffold(
       body: BlocListener<DictationCubit, DictationState>(
         listener: _onDictationState,
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: Column(
-                children: [
-                  const ModelStatusBanner(),
-                  Expanded(
-                    child: BlocBuilder<ChatBloc, ChatState>(
-                      builder: (context, state) {
-                        if (state.messages.isEmpty) {
-                          return _EmptyConversation(
-                            onAsk: _submit,
-                            onPrefill: _prefill,
+        child: SowSynthesisListener(
+          child: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Column(
+                  children: [
+                    const ModelStatusBanner(),
+                    Expanded(
+                      child: BlocBuilder<ChatBloc, ChatState>(
+                        builder: (context, state) {
+                          if (state.messages.isEmpty) {
+                            return _EmptyConversation(
+                              onAsk: _submit,
+                              onPrefill: _prefill,
+                            );
+                          }
+                          return _MessageList(
+                            messages: state.messages,
+                            generating: state is ChatGenerating,
                           );
-                        }
-                        return _MessageList(
-                          messages: state.messages,
-                          generating: state is ChatGenerating,
+                        },
+                      ),
+                    ),
+                    const _DictationPreview(),
+                    BlocBuilder<ModelStatusCubit, ModelStatusState>(
+                      builder: (context, modelState) {
+                        return BlocBuilder<ChatBloc, ChatState>(
+                          builder: (context, chatState) {
+                            return ChatInputBar(
+                              controller: _controller,
+                              focusNode: _inputFocusNode,
+                              enabled: modelState is ModelStatusReady,
+                              sending: chatState is ChatGenerating,
+                              hintText: _hintFor(modelState),
+                              onSend: _submit,
+                            );
+                          },
                         );
                       },
                     ),
-                  ),
-                  const _DictationPreview(),
-                  BlocBuilder<ModelStatusCubit, ModelStatusState>(
-                    builder: (context, modelState) {
-                      return BlocBuilder<ChatBloc, ChatState>(
-                        builder: (context, chatState) {
-                          return ChatInputBar(
-                            controller: _controller,
-                            focusNode: _inputFocusNode,
-                            enabled: modelState is ModelStatusReady,
-                            sending: chatState is ChatGenerating,
-                            hintText: _hintFor(modelState),
-                            onSend: _submit,
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -181,14 +187,15 @@ class _GeneratingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<SerreTokens>()!;
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest,
+          color: tokens.surface,
+          border: Border.all(color: tokens.line),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
@@ -202,7 +209,7 @@ class _GeneratingIndicator extends StatelessWidget {
             const SizedBox(width: 10),
             Text(
               'L’assistant rédige une réponse…',
-              style: TextStyle(color: scheme.onSurfaceVariant),
+              style: TextStyle(color: tokens.sub),
             ),
           ],
         ),

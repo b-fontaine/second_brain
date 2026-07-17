@@ -13,6 +13,10 @@ import './step/the_git_token_is_updated.dart';
 import './step/i_see_text.dart';
 import './step/the_remote_rejects_the_token.dart';
 import './step/the_git_token_is_not_persisted.dart';
+import './step/a_zettel_titled_exists.dart';
+import './step/the_last_synchronization_resolved_conflicts.dart';
+import './step/the_conflict_toast_explains_the_conflicts_folder.dart';
+import './step/the_settings_show_the_resolved_conflict_card.dart';
 
 void main() {
   group('''Git synchronization settings''', () {
@@ -38,6 +42,27 @@ void main() {
       await iTapButton(tester, 'Enregistrer');
       await iSeeText(tester, 'Jeton refusé par le dépôt distant');
       await theGitTokenIsNotPersisted(tester);
+    });
+    testWidgets('''Les réglages présentent le jardin en cartes''',
+        (tester) async {
+      await bddSetUp(tester);
+      await aZettelTitledExists(tester, 'Note du potager');
+      await iOpenTheSettingsScreen(tester);
+      await iSeeText(tester, 'Synchronisation');
+      await iSeeText(tester, 'Jardin');
+      await iSeeText(tester, 'Notes cultivées');
+      await iSeeText(tester, '1 note');
+      await iSeeText(tester, 'Modèles locaux');
+      await iSeeText(tester, 'Gérer les modèles');
+    });
+    testWidgets(
+        '''Un conflit résolu s'affiche en carte ambre dans les réglages''',
+        (tester) async {
+      await bddSetUp(tester);
+      await theLastSynchronizationResolvedConflicts(tester, 2);
+      await theConflictToastExplainsTheConflictsFolder(tester);
+      await iOpenTheSettingsScreen(tester);
+      await theSettingsShowTheResolvedConflictCard(tester);
     });
   });
 }

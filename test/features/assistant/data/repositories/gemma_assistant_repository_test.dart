@@ -216,7 +216,66 @@ void main() {
   });
 
   group('answerQuestion', () {
-    test('builds the context from topK and extracts citations', () async {
+    void stubVault(List<Zettel> zettels) {
+      when(
+        () => zettelRepository.getAllZettels(),
+      ).thenAnswer((_) async => Right(zettels));
+    }
+
+    test(
+      'builds the context from topK and splits sources from related',
+      () async {
+        when(
+          () => ragIndex.topK(any(), k: 5),
+        ).thenAnswer((_) async => [(idA, 'extrait A'), (idB, 'extrait B')]);
+        when(
+          () => zettelRepository.getZettelById(idA),
+        ).thenAnswer((_) async => Right(zettelA));
+        when(
+          () => zettelRepository.getZettelById(idB),
+        ).thenAnswer((_) async => Right(zettelB));
+        when(
+          () => zettelRepository.getZettelById(idC),
+        ).thenAnswer((_) async => Left(ZettelNotFoundFailure(idC.value)));
+        stubVault([zettelA, zettelB]);
+        stubGenerate(
+          'La mémoire de travail est limitée [[20260101100000]]. '
+          'Voir aussi [[20260103100000]].',
+        );
+
+        final result = await repository.answerQuestion(
+          'Que sait-on de la mémoire ?',
+        );
+
+        final answer = result.getOrElse((_) => fail('expected Right'));
+        expect(answer.text, contains('[[20260101100000]]'));
+        // Sources = ids cited in the answer, in order of appearance, with
+        // their resolved titles (empty for the unknown idC, whose chip label
+        // falls back to the raw id).
+        expect(answer.sources.map((s) => s.id), [idA, idC]);
+        expect(answer.sources[0].title, 'Mémoire de travail');
+        expect(answer.sources[0].label, 'Mémoire de travail');
+        expect(answer.sources[1].title, isEmpty);
+        expect(answer.sources[1].label, idC.value);
+        // Related = retrieved as context but not cited (« Et peut-être »).
+        expect(answer.related.map((s) => s.id), [idB]);
+        expect(answer.related.single.title, 'Charge cognitive');
+
+        final prompt =
+            verify(
+                  () => localAi.generate(
+                    captureAny(),
+                    systemPrompt: any(named: 'systemPrompt'),
+                  ),
+                ).captured.single
+                as String;
+        expect(prompt, contains('[[20260101100000]] Mémoire de travail'));
+        expect(prompt, contains('[[20260102100000]] Charge cognitive'));
+        expect(prompt, contains('Question : Que sait-on de la mémoire ?'));
+      },
+    );
+
+    test('cites the whole context when the answer has no [[id]]', () async {
       when(
         () => ragIndex.topK(any(), k: 5),
       ).thenAnswer((_) async => [(idA, 'extrait A'), (idB, 'extrait B')]);
@@ -226,31 +285,62 @@ void main() {
       when(
         () => zettelRepository.getZettelById(idB),
       ).thenAnswer((_) async => Right(zettelB));
-      stubGenerate(
-        'La mémoire de travail est limitée [[20260101100000]]. '
-        'Voir aussi [[20260103100000]].',
-      );
+      stubVault([zettelA, zettelB]);
+      stubGenerate('Réponse sans citation explicite.');
 
-      final result = await repository.answerQuestion(
-        'Que sait-on de la mémoire ?',
-      );
+      final result = await repository.answerQuestion('question');
 
       final answer = result.getOrElse((_) => fail('expected Right'));
-      expect(answer.text, contains('[[20260101100000]]'));
-      // Cited in the answer first (idA, idC), then remaining context (idB).
-      expect(answer.citedZettels, [idA, idC, idB]);
+      // The answer was still built on the retrieved notes: they all
+      // become sources and nothing is left for « Et peut-être ».
+      expect(answer.sources.map((s) => s.id), [idA, idB]);
+      expect(answer.related, isEmpty);
+    });
 
-      final prompt =
-          verify(
-                () => localAi.generate(
-                  captureAny(),
-                  systemPrompt: any(named: 'systemPrompt'),
-                ),
-              ).captured.single
-              as String;
-      expect(prompt, contains('[[20260101100000]] Mémoire de travail'));
-      expect(prompt, contains('[[20260102100000]] Charge cognitive'));
-      expect(prompt, contains('Question : Que sait-on de la mémoire ?'));
+    test('exposes the undirected link degree of surfaced notes', () async {
+      // A links to B: both ends have degree 1 (reciprocal links merged,
+      // same rules as the Explorer graph).
+      final linkedA = Zettel(
+        id: idA,
+        title: 'Mémoire de travail',
+        body: 'Limitée, voir [[${idB.value}]].',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      when(
+        () => ragIndex.topK(any(), k: 5),
+      ).thenAnswer((_) async => [(idA, 'extrait A'), (idB, 'extrait B')]);
+      when(
+        () => zettelRepository.getZettelById(idA),
+      ).thenAnswer((_) async => Right(linkedA));
+      when(
+        () => zettelRepository.getZettelById(idB),
+      ).thenAnswer((_) async => Right(zettelB));
+      stubVault([linkedA, zettelB]);
+      stubGenerate('Réponse [[${idA.value}]].');
+
+      final result = await repository.answerQuestion('question');
+
+      final answer = result.getOrElse((_) => fail('expected Right'));
+      expect(answer.sources.single.linkCount, 1);
+      expect(answer.related.single.linkCount, 1);
+    });
+
+    test('hides the degree when the vault cannot be read', () async {
+      when(
+        () => ragIndex.topK(any(), k: 5),
+      ).thenAnswer((_) async => [(idA, 'extrait A')]);
+      when(
+        () => zettelRepository.getZettelById(idA),
+      ).thenAnswer((_) async => Right(zettelA));
+      when(
+        () => zettelRepository.getAllZettels(),
+      ).thenAnswer((_) async => const Left(VaultFailure('disque illisible')));
+      stubGenerate('Réponse [[${idA.value}]].');
+
+      final result = await repository.answerQuestion('question');
+
+      final answer = result.getOrElse((_) => fail('expected Right'));
+      expect(answer.sources.single.linkCount, isNull);
     });
 
     test('truncates long note bodies in the context (~800 chars)', () async {
@@ -266,6 +356,7 @@ void main() {
       when(
         () => zettelRepository.getZettelById(idA),
       ).thenAnswer((_) async => Right(longZettel));
+      stubVault([longZettel]);
       stubGenerate('Réponse.');
 
       await repository.answerQuestion('question');
@@ -291,7 +382,8 @@ void main() {
 
       final answer = result.getOrElse((_) => fail('expected Right'));
       expect(answer.text, contains('aucune note pertinente'));
-      expect(answer.citedZettels, isEmpty);
+      expect(answer.sources, isEmpty);
+      expect(answer.related, isEmpty);
       verifyNever(
         () => localAi.generate(any(), systemPrompt: any(named: 'systemPrompt')),
       );
@@ -304,6 +396,7 @@ void main() {
       when(
         () => zettelRepository.getZettelById(idA),
       ).thenAnswer((_) async => Left(ZettelNotFoundFailure(idA.value)));
+      stubVault(const []);
       stubGenerate('Réponse.');
 
       final result = await repository.answerQuestion('question');

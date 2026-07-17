@@ -49,7 +49,7 @@ Future<void> theAssistantAnswersUsingTheZettelkastenContent(
   );
   expect(answer.text, isNotEmpty);
   expect(
-    answer.citedZettels,
+    answer.sources,
     isNotEmpty,
     reason: 'An answer built on the zettelkasten should cite zettels',
   );

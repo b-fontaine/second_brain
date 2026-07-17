@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/capture/presentation/widgets/seed_dial.dart';
 import '../../features/capture/presentation/widgets/window_drop_zone.dart';
+import '../../features/sync/presentation/widgets/sync_shell_scope.dart';
 import '../../features/sync/presentation/widgets/sync_status_indicator.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
@@ -217,10 +218,21 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
                     alignment: Alignment.bottomCenter,
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: IconButton(
-                        tooltip: 'Réglages',
-                        onPressed: () => context.push(AppRoutes.settings),
-                        icon: const Icon(Icons.settings_outlined),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Amber/green sync heartbeat (shell-provided
+                          // cubit); hidden when no SyncShellScope exists
+                          // above (stubbed widget tests). Compact layouts
+                          // rely on the Explorer sync pill instead.
+                          const SyncStatusDot(),
+                          const SizedBox(height: 8),
+                          IconButton(
+                            tooltip: 'Réglages',
+                            onPressed: () => context.push(AppRoutes.settings),
+                            icon: const Icon(Icons.settings_outlined),
+                          ),
+                        ],
                       ),
                     ),
                   ),

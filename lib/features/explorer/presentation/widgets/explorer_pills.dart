@@ -68,17 +68,23 @@ class _SeedlingPill extends StatelessWidget {
 
 /// Git synchronization pill: « À jour » green, « Hors ligne » amber, etc.
 ///
-/// Creates its own [SyncStatusCubit] via getIt, like the AppBar
-/// [SyncStatusIndicator] — both follow the same repository streams.
+/// Reuses the shell's shared [SyncStatusCubit] (`SyncShellScope`) when
+/// present — same source of truth as the AppBar indicator — and only
+/// creates its own via getIt for standalone usages.
 class SyncStatusPill extends StatelessWidget {
   const SyncStatusPill({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<SyncStatusCubit>()..start(),
-      child: const _SyncStatusPillBody(),
-    );
+    try {
+      context.read<SyncStatusCubit>();
+      return const _SyncStatusPillBody();
+    } on ProviderNotFoundException {
+      return BlocProvider(
+        create: (_) => getIt<SyncStatusCubit>()..start(),
+        child: const _SyncStatusPillBody(),
+      );
+    }
   }
 }
 

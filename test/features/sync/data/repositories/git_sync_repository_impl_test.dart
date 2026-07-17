@@ -360,6 +360,42 @@ void main() {
       await notified;
     });
 
+    test('surfaces the resolved conflicts on the status until the next '
+        'clean pull clears them', () async {
+      when(() => git.pull(path: vaultPath, token: token)).thenAnswer(
+        (_) async => const PullResult(
+          updated: true,
+          resolvedConflicts: [
+            ConflictResolution(
+              path: 'zettel/20260714103000-memoire.md',
+              backupPath:
+                  'conflicts/conflict-20260714110000-20260714103000-memoire.md',
+            ),
+            ConflictResolution(path: 'zettel/20260714104500-projet.md'),
+          ],
+        ),
+      );
+
+      await repository.synchronize();
+      final conflicted = (await repository.getStatus()).getOrElse(
+        (failure) => fail('expected a status, got $failure'),
+      );
+      // Feeds the amber settings card and the shell toast.
+      expect(conflicted.conflictCount, 2);
+      expect(conflicted.hasConflicts, isTrue);
+
+      when(
+        () => git.pull(path: vaultPath, token: token),
+      ).thenAnswer((_) async => const PullResult());
+
+      await repository.synchronize();
+      final cleared = (await repository.getStatus()).getOrElse(
+        (failure) => fail('expected a status, got $failure'),
+      );
+      expect(cleared.conflictCount, 0);
+      expect(cleared.hasConflicts, isFalse);
+    });
+
     test('does not notify pull listeners when nothing changed', () async {
       var notifications = 0;
       final subscription = pullChangeNotifier.changes.listen(

@@ -139,11 +139,13 @@ Réponds en français, en Markdown.''';
       }
 
       final contextIds = <ZettelId>[];
+      final titlesById = <String, String>{};
       final contextBlocks = <String>[];
       for (final (id, excerpt) in hits) {
         contextIds.add(id);
         final zettel = await _findZettel(id);
         final title = zettel?.title ?? '';
+        titlesById[id.value] = title;
         final body = _truncate(zettel?.body ?? excerpt, _contextBodyMaxChars);
         contextBlocks.add('[[${id.value}]] $title\n$body');
       }
@@ -157,14 +159,44 @@ Réponds en français, en Markdown.''';
         systemPrompt: answerSystemPrompt,
       );
 
-      // Cited = ids actually referenced in the answer ∪ context ids used,
-      // answer citations first.
-      final seen = <String>{};
-      final cited = <ZettelId>[
-        for (final id in [...Zettel.parseWikiLinks(answer), ...contextIds])
-          if (seen.add(id.value)) id,
+      // Sources = ids the model actually referenced in its answer, in
+      // order of appearance. When it cited nothing explicitly the whole
+      // retrieved context stands in: the answer was still built on it.
+      final citedIds = Zettel.parseWikiLinks(answer);
+      final sourceIds = citedIds.isEmpty ? contextIds : citedIds;
+      final sourceKeys = {for (final id in sourceIds) id.value};
+
+      final degrees = await _linkDegrees({
+        ...sourceKeys,
+        for (final id in contextIds) id.value,
+      });
+
+      final sources = <AssistantSource>[];
+      for (final id in sourceIds) {
+        // Cited ids outside the retrieved context (the model may reference
+        // a note quoted inside another note's body) still get a title.
+        final title = titlesById[id.value] ?? (await _findZettel(id))?.title;
+        sources.add(
+          AssistantSource(
+            id: id,
+            title: title ?? '',
+            linkCount: degrees?[id.value],
+          ),
+        );
+      }
+      // Retrieved but not cited → the discreet « Et peut-être » section.
+      final related = <AssistantSource>[
+        for (final id in contextIds)
+          if (!sourceKeys.contains(id.value))
+            AssistantSource(
+              id: id,
+              title: titlesById[id.value] ?? '',
+              linkCount: degrees?[id.value],
+            ),
       ];
-      return Right(AssistantAnswer(text: answer, citedZettels: cited));
+      return Right(
+        AssistantAnswer(text: answer, sources: sources, related: related),
+      );
     } on AiException catch (exception) {
       return Left(AiFailure(exception.message));
     } catch (error) {
@@ -214,6 +246,35 @@ Réponds en français, en Markdown.''';
       buffer.write('\nVoir aussi : $wikilink');
     }
     return buffer.toString();
+  }
+
+  // --- answerQuestion helpers -----------------------------------------------
+
+  /// Undirected link degree of each id in [ids] over the whole vault
+  /// (reciprocal links merged, self-links and links to missing notes
+  /// ignored — same rules as the Explorer graph). One vault read covers
+  /// every surfaced note. Null when the vault could not be read: callers
+  /// then hide the maturity badge instead of showing a wrong one.
+  Future<Map<String, int>?> _linkDegrees(Set<String> ids) async {
+    try {
+      final result = await _zettelRepository.getAllZettels();
+      return result.fold((_) => null, (all) {
+        final live = {for (final zettel in all) zettel.id.value};
+        final adjacency = <String, Set<String>>{};
+        for (final zettel in all) {
+          final source = zettel.id.value;
+          for (final target in zettel.outgoingLinks) {
+            final targetId = target.value;
+            if (targetId == source || !live.contains(targetId)) continue;
+            (adjacency[source] ??= <String>{}).add(targetId);
+            (adjacency[targetId] ??= <String>{}).add(source);
+          }
+        }
+        return {for (final id in ids) id: adjacency[id]?.length ?? 0};
+      });
+    } catch (_) {
+      return null;
+    }
   }
 
   // --- shared helpers -------------------------------------------------------

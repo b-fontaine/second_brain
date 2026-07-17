@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:second_brain/core/theme/app_theme.dart';
+import 'package:second_brain/features/assistant/domain/entities/assistant_answer.dart';
 import 'package:second_brain/features/assistant/presentation/bloc/chat_state.dart';
 import 'package:second_brain/features/assistant/presentation/widgets/chat_message_bubble.dart';
 import 'package:second_brain/features/assistant/presentation/widgets/wikilink_markdown.dart';
@@ -119,7 +120,12 @@ void main() {
       final router = buildRouter(
         ChatMessage.assistant(
           text: 'Réponse sans citation inline.',
-          citedZettels: [ZettelId.fromString('20260101120000')],
+          sources: [
+            AssistantSource(
+              id: ZettelId.fromString('20260101120000'),
+              title: 'Mémoire de travail',
+            ),
+          ],
         ),
       );
 
@@ -127,7 +133,7 @@ void main() {
         MaterialApp.router(theme: AppTheme.light, routerConfig: router),
       );
 
-      await tester.tap(find.text('20260101120000'));
+      await tester.tap(find.text('Mémoire de travail'));
       await tester.pumpAndSettle();
 
       expect(find.text('détail 20260101120000'), findsOneWidget);

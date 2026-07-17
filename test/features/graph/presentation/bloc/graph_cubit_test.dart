@@ -6,6 +6,7 @@ import 'package:fpdart/fpdart.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:second_brain/core/error/failures.dart';
 import 'package:second_brain/core/usecases/usecase.dart';
+import 'package:second_brain/features/graph/domain/entities/related_note_suggestion.dart';
 import 'package:second_brain/features/graph/domain/usecases/suggest_related_notes.dart';
 import 'package:second_brain/features/graph/domain/usecases/watch_vault.dart';
 import 'package:second_brain/features/graph/presentation/bloc/graph_cubit.dart';
@@ -60,7 +61,7 @@ void main() {
     ).thenAnswer((_) => const Stream<Either<Failure, VaultChanged>>.empty());
     when(
       () => suggestRelatedNotes(any()),
-    ).thenAnswer((_) async => const Right(<String>[]));
+    ).thenAnswer((_) async => const Right(<RelatedNoteSuggestion>[]));
   });
 
   GraphCubit buildCubit() =>
@@ -202,9 +203,10 @@ void main() {
 
     test('exposes the selection, its neighbors and the fleur suggestions '
         'from the local index (already-linked ids excluded)', () async {
-      when(
-        () => suggestRelatedNotes(any()),
-      ).thenAnswer((_) async => const Right([_idC]));
+      when(() => suggestRelatedNotes(any())).thenAnswer(
+        (_) async =>
+            const Right([RelatedNoteSuggestion(id: _idC, title: 'C')]),
+      );
       final cubit = buildCubit();
       addTearDown(cubit.close);
       await cubit.load();
@@ -224,9 +226,10 @@ void main() {
     });
 
     test('selectNode(null) clears the selection and the suggestions', () async {
-      when(
-        () => suggestRelatedNotes(any()),
-      ).thenAnswer((_) async => const Right([_idC]));
+      when(() => suggestRelatedNotes(any())).thenAnswer(
+        (_) async =>
+            const Right([RelatedNoteSuggestion(id: _idC, title: 'C')]),
+      );
       final cubit = buildCubit();
       addTearDown(cubit.close);
       await cubit.load();
@@ -241,7 +244,8 @@ void main() {
     });
 
     test('drops stale suggestions when the selection moved on', () async {
-      final completer = Completer<Either<Failure, List<String>>>();
+      final completer =
+          Completer<Either<Failure, List<RelatedNoteSuggestion>>>();
       when(
         () => suggestRelatedNotes(any()),
       ).thenAnswer((_) => completer.future);
@@ -251,7 +255,9 @@ void main() {
 
       final pending = cubit.selectNode(_idA);
       await cubit.selectNode(null);
-      completer.complete(const Right([_idC]));
+      completer.complete(
+        const Right([RelatedNoteSuggestion(id: _idC, title: 'C')]),
+      );
       await pending;
 
       final state = cubit.state as GraphLoaded;
@@ -260,9 +266,11 @@ void main() {
     });
 
     test('ignores suggested ids absent from the graph', () async {
-      when(
-        () => suggestRelatedNotes(any()),
-      ).thenAnswer((_) async => const Right([_missingId]));
+      when(() => suggestRelatedNotes(any())).thenAnswer(
+        (_) async => const Right([
+          RelatedNoteSuggestion(id: _missingId, title: 'Fantôme'),
+        ]),
+      );
       final cubit = buildCubit();
       addTearDown(cubit.close);
       await cubit.load();
@@ -406,9 +414,10 @@ void main() {
             _zettel(_idC, title: 'C'),
           ]),
         );
-        when(
-          () => suggestRelatedNotes(any()),
-        ).thenAnswer((_) async => const Right([_idC]));
+        when(() => suggestRelatedNotes(any())).thenAnswer(
+          (_) async =>
+              const Right([RelatedNoteSuggestion(id: _idC, title: 'C')]),
+        );
 
         final cubit = buildCubit();
         addTearDown(cubit.close);

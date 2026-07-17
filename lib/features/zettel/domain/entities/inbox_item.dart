@@ -10,6 +10,9 @@ enum CaptureType {
 
   /// Text/markdown file imported from disk (« Ajouter un fichier »).
   file,
+
+  /// Assistant synthesis sown from the chat (« Semer cette synthèse »).
+  assistant,
 }
 
 /// Lifecycle of an inbox item: captured, then processed into zettels

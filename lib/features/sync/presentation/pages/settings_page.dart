@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/serre_tokens.dart';
 import '../../domain/entities/sync_status.dart';
 import '../bloc/settings_cubit.dart';
 
 /// Settings screen, mounted on the `/settings` route (pushed full-screen,
-/// outside the shell). Lets the user renew the git access token and test
-/// the connection to the remote repository.
+/// outside the shell). Four cards — Synchronisation, Jeton d'accès,
+/// Jardin, Modèles — plus an amber conflict card when the last pull had to
+/// resolve conflicts (remote copies saved under `conflicts/`).
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -23,6 +27,11 @@ class SettingsPage extends StatelessWidget {
 /// Cubit-agnostic view, testable with a provided [SettingsCubit].
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
+
+  /// Amber conflict card body (mirrors the shell toast wording).
+  static const conflictCardMessage =
+      'La copie distante est conservée dans conflicts/ — vos notes '
+      'n’ont rien perdu.';
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +84,7 @@ class _SettingsBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final hasConflicts = state.syncStatus?.hasConflicts ?? false;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -86,13 +95,19 @@ class _SettingsBody extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Synchronisation', style: theme.textTheme.titleLarge),
-              const SizedBox(height: 16),
-              _RemoteSummary(state: state),
-              if (state.hasRemote) ...[
-                const SizedBox(height: 24),
-                _TokenForm(state: state),
+              if (hasConflicts) ...[
+                _ConflictCard(count: state.syncStatus!.conflictCount),
+                const SizedBox(height: 16),
               ],
+              _SyncCard(state: state),
+              if (state.hasRemote) ...[
+                const SizedBox(height: 16),
+                _TokenCard(state: state),
+              ],
+              const SizedBox(height: 16),
+              _GardenCard(state: state),
+              const SizedBox(height: 16),
+              const _ModelsCard(),
             ],
           ),
         ),
@@ -101,59 +116,153 @@ class _SettingsBody extends StatelessWidget {
   }
 }
 
-/// Read-only overview: remote url (or local-only notice), token presence
-/// and current synchronization status.
-class _RemoteSummary extends StatelessWidget {
-  const _RemoteSummary({required this.state});
+/// Icon + title + functional subtitle row shared by every settings card.
+class _CardHeader extends StatelessWidget {
+  const _CardHeader({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.iconColor,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<SerreTokens>()!;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: iconColor ?? tokens.accent),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.titleMedium),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(color: tokens.sub),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Amber card shown when the last pull resolved conflicts local-wins: the
+/// remote copies are safe under `conflicts/`, nothing was lost.
+class _ConflictCard extends StatelessWidget {
+  const _ConflictCard({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<SerreTokens>()!;
+    return Card(
+      key: const Key('settings_conflict_card'),
+      margin: EdgeInsets.zero,
+      color: tokens.ambre.withValues(alpha: 0.14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: tokens.ambre),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _CardHeader(
+              icon: Icons.call_merge_outlined,
+              iconColor: tokens.ambre,
+              title: 'Conflit de synchronisation résolu',
+              subtitle: count > 1
+                  ? '$count fichiers étaient modifiés des deux côtés'
+                  : '1 fichier était modifié des deux côtés',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              SettingsView.conflictCardMessage,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// « Synchronisation » : remote overview, current status and manual sync.
+class _SyncCard extends StatelessWidget {
+  const _SyncCard({required this.state});
 
   final SettingsLoaded state;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    if (!state.hasRemote) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SummaryRow(
-            icon: Icons.cloud_off,
-            label: 'Dépôt distant',
-            value: 'Aucun dépôt distant configuré',
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'La synchronisation n\'est pas configurée pour ce coffre. '
-            'Vos notes restent stockées uniquement sur cet appareil.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+    final tokens = theme.extension<SerreTokens>()!;
+    final isBusy = state is SettingsTesting || state is SettingsSaving;
+    return Card(
+      key: const Key('settings_sync_card'),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _CardHeader(
+              icon: Icons.sync_outlined,
+              title: 'Synchronisation',
+              subtitle: 'Vos notes suivies par git',
             ),
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SummaryRow(
-          icon: Icons.cloud_outlined,
-          label: 'Dépôt distant',
-          value: state.remoteUrl!,
+            const SizedBox(height: 12),
+            if (!state.hasRemote) ...[
+              const _SummaryRow(
+                icon: Icons.cloud_off,
+                label: 'Dépôt distant',
+                value: 'Aucun dépôt distant configuré',
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'La synchronisation n\'est pas configurée pour ce coffre. '
+                'Vos notes restent stockées uniquement sur cet appareil.',
+                style: theme.textTheme.bodySmall?.copyWith(color: tokens.sub),
+              ),
+            ] else ...[
+              _SummaryRow(
+                icon: Icons.cloud_outlined,
+                label: 'Dépôt distant',
+                value: state.remoteUrl!,
+              ),
+              const SizedBox(height: 8),
+              _SummaryRow(
+                icon: Icons.sync_outlined,
+                label: 'Statut',
+                value: _statusLabel(state.syncStatus),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                key: const Key('settings_force_sync_button'),
+                onPressed: isBusy
+                    ? null
+                    : () => context.read<SettingsCubit>().forceSync(),
+                icon: const Icon(Icons.sync),
+                label: const Text('Forcer la synchronisation'),
+              ),
+            ],
+          ],
         ),
-        const SizedBox(height: 8),
-        _SummaryRow(
-          icon: Icons.key_outlined,
-          label: 'Jeton d\'accès',
-          value: state.hasStoredToken ? 'Jeton enregistré' : 'Aucun jeton',
-        ),
-        const SizedBox(height: 8),
-        _SummaryRow(
-          icon: Icons.sync_outlined,
-          label: 'Statut',
-          value: _statusLabel(state.syncStatus),
-        ),
-      ],
+      ),
     );
   }
 
@@ -173,6 +282,115 @@ class _RemoteSummary extends StatelessWidget {
   }
 }
 
+/// « Jeton d'accès » : renewal of the git token kept in the system
+/// keychain (never displayed).
+class _TokenCard extends StatelessWidget {
+  const _TokenCard({required this.state});
+
+  final SettingsLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('settings_token_card'),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _CardHeader(
+              icon: Icons.key_outlined,
+              title: 'Jeton d\'accès',
+              subtitle: state.hasStoredToken
+                  ? 'Jeton enregistré dans le trousseau système'
+                  : 'Aucun jeton enregistré',
+            ),
+            const SizedBox(height: 12),
+            _TokenForm(state: state),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// « Jardin » : where the vault lives and how it grows.
+class _GardenCard extends StatelessWidget {
+  const _GardenCard({required this.state});
+
+  final SettingsLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    final noteCount = state.noteCount;
+    return Card(
+      key: const Key('settings_garden_card'),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _CardHeader(
+              icon: Icons.park_outlined,
+              title: 'Jardin',
+              subtitle: 'Votre coffre de notes markdown',
+            ),
+            const SizedBox(height: 12),
+            _SummaryRow(
+              icon: Icons.folder_outlined,
+              label: 'Emplacement',
+              value: state.vaultPath ?? 'Emplacement inconnu',
+            ),
+            if (noteCount != null) ...[
+              const SizedBox(height: 8),
+              _SummaryRow(
+                icon: Icons.notes_outlined,
+                label: 'Notes cultivées',
+                value: noteCount > 1 ? '$noteCount notes' : '$noteCount note',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// « Modèles » : link to the models screen (voice + assistant downloads).
+class _ModelsCard extends StatelessWidget {
+  const _ModelsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('settings_models_card'),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _CardHeader(
+              icon: Icons.download_outlined,
+              title: 'Modèles locaux',
+              subtitle: 'Dictée, transcription et assistant hors ligne',
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              key: const Key('settings_models_button'),
+              onPressed: () => context.push(AppRoutes.models),
+              child: const Text('Gérer les modèles'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small icon + label + value row used by the sync and garden cards.
 class _SummaryRow extends StatelessWidget {
   const _SummaryRow({
     required this.icon,
@@ -211,8 +429,8 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-/// Token renewal form: test the connection with a candidate token, save it
-/// atomically (test + persist), or force a manual synchronization.
+/// Token renewal form: test the connection with a candidate token, or save
+/// it atomically (test + persist).
 class _TokenForm extends StatefulWidget {
   const _TokenForm({required this.state});
 
@@ -285,17 +503,6 @@ class _TokenFormState extends State<_TokenForm> {
                   )
                 : null,
             child: const Text('Enregistrer'),
-          ),
-          const SizedBox(height: 24),
-          const Divider(),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            key: const Key('settings_force_sync_button'),
-            onPressed: isBusy
-                ? null
-                : () => context.read<SettingsCubit>().forceSync(),
-            icon: const Icon(Icons.sync),
-            label: const Text('Forcer la synchronisation'),
           ),
           if (isBusy) ...[
             const SizedBox(height: 16),

@@ -30,6 +30,8 @@ class SettingsLoaded extends SettingsState {
     required this.remoteUrl,
     required this.hasStoredToken,
     this.syncStatus,
+    this.vaultPath,
+    this.noteCount,
   });
 
   /// HTTPS url of the remote repository; null when the vault is
@@ -42,10 +44,23 @@ class SettingsLoaded extends SettingsState {
   /// Current synchronization status, null when unavailable.
   final SyncStatus? syncStatus;
 
+  /// Absolute path of the vault directory (« Jardin » card); null when
+  /// unavailable.
+  final String? vaultPath;
+
+  /// Number of notes in the vault; null when the vault cannot be read.
+  final int? noteCount;
+
   bool get hasRemote => remoteUrl != null && remoteUrl!.isNotEmpty;
 
   @override
-  List<Object?> get props => [remoteUrl, hasStoredToken, syncStatus];
+  List<Object?> get props => [
+    remoteUrl,
+    hasStoredToken,
+    syncStatus,
+    vaultPath,
+    noteCount,
+  ];
 }
 
 /// A connection test is running.
@@ -55,6 +70,8 @@ final class SettingsTesting extends SettingsLoaded {
         remoteUrl: s.remoteUrl,
         hasStoredToken: s.hasStoredToken,
         syncStatus: s.syncStatus,
+        vaultPath: s.vaultPath,
+        noteCount: s.noteCount,
       );
 }
 
@@ -65,6 +82,8 @@ final class SettingsTestSuccess extends SettingsLoaded {
         remoteUrl: s.remoteUrl,
         hasStoredToken: s.hasStoredToken,
         syncStatus: s.syncStatus,
+        vaultPath: s.vaultPath,
+        noteCount: s.noteCount,
       );
 }
 
@@ -75,6 +94,8 @@ final class SettingsTestFailure extends SettingsLoaded {
         remoteUrl: s.remoteUrl,
         hasStoredToken: s.hasStoredToken,
         syncStatus: s.syncStatus,
+        vaultPath: s.vaultPath,
+        noteCount: s.noteCount,
       );
 
   final String message;
@@ -90,6 +111,8 @@ final class SettingsSaving extends SettingsLoaded {
         remoteUrl: s.remoteUrl,
         hasStoredToken: s.hasStoredToken,
         syncStatus: s.syncStatus,
+        vaultPath: s.vaultPath,
+        noteCount: s.noteCount,
       );
 }
 
@@ -101,6 +124,8 @@ final class SettingsSaved extends SettingsLoaded {
         // Saving succeeded, so a token is now stored by construction.
         hasStoredToken: true,
         syncStatus: s.syncStatus,
+        vaultPath: s.vaultPath,
+        noteCount: s.noteCount,
       );
 }
 
@@ -111,6 +136,8 @@ final class SettingsSaveFailure extends SettingsLoaded {
         remoteUrl: s.remoteUrl,
         hasStoredToken: s.hasStoredToken,
         syncStatus: s.syncStatus,
+        vaultPath: s.vaultPath,
+        noteCount: s.noteCount,
       );
 
   final String message;

@@ -50,6 +50,7 @@ class _CaptureView extends StatelessWidget {
     CaptureType.screenshot => 'Reconnaissance du texte de l’image…',
     CaptureType.dictation => 'Préparation de la dictée…',
     CaptureType.file => 'Lecture du fichier…',
+    CaptureType.assistant => 'Préparation de la synthèse…',
   };
 
   /// Closes the pushed capture flow, returns to Explorer and confirms the
@@ -63,9 +64,7 @@ class _CaptureView extends StatelessWidget {
     if (navigator.canPop()) navigator.pop();
     router?.go(AppRoutes.explorer);
     messenger.showSnackBar(
-      const SnackBar(
-        content: Text('Semé en pépinière — brouillon à valider.'),
-      ),
+      const SnackBar(content: Text('Semé en pépinière — brouillon à valider.')),
     );
   }
 
@@ -89,13 +88,12 @@ class _CaptureView extends StatelessWidget {
           body: SafeArea(
             child: switch (state) {
               CaptureIdle() => const CaptureSourcesView(),
-              CaptureModelInstalling(:final progress) =>
-                ExtractionProgressView(
-                  label:
-                      'Téléchargement du modèle de reconnaissance vocale… '
-                      'Cette opération n’a lieu qu’au premier usage.',
-                  progress: progress,
-                ),
+              CaptureModelInstalling(:final progress) => ExtractionProgressView(
+                label:
+                    'Téléchargement du modèle de reconnaissance vocale… '
+                    'Cette opération n’a lieu qu’au premier usage.',
+                progress: progress,
+              ),
               CaptureExtracting(:final type) => ExtractionProgressView(
                 label: _extractionLabel(type),
               ),

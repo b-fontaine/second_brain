@@ -24,3 +24,11 @@ Feature: Querying the knowledge base by prompt
     When I open the assistant chat
     And I ask by voice {'Que sais-je sur la mémoire de travail ?'}
     Then the assistant answers using the zettelkasten content
+
+  # Chantier 5 (plan Serre) : « Semer cette synthèse » — la réponse de
+  # l'assistant devient un brouillon de la pépinière via CaptureIntake.
+  Scenario: Semer la synthèse envoie la réponse en pépinière
+    Given the assistant answered citing {'Mémoire de travail'}
+    When I tap {'Semer cette synthèse'} button
+    Then I see {'Semé en pépinière — brouillon à valider.'} text
+    And the inbox contains {1} pending item

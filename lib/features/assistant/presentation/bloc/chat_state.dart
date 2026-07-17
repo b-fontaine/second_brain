@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../zettel/domain/entities/zettel_id.dart';
+import '../../domain/entities/assistant_answer.dart';
 
 /// Author of a [ChatMessage].
 enum ChatMessageRole { user, assistant }
@@ -10,7 +10,8 @@ class ChatMessage extends Equatable {
   const ChatMessage._({
     required this.role,
     required this.text,
-    this.citedZettels = const [],
+    this.sources = const [],
+    this.related = const [],
     this.isError = false,
   });
 
@@ -21,11 +22,13 @@ class ChatMessage extends Equatable {
   /// Answer produced by the assistant (markdown, may contain `[[id]]`).
   factory ChatMessage.assistant({
     required String text,
-    List<ZettelId> citedZettels = const [],
+    List<AssistantSource> sources = const [],
+    List<AssistantSource> related = const [],
   }) => ChatMessage._(
     role: ChatMessageRole.assistant,
     text: text,
-    citedZettels: citedZettels,
+    sources: sources,
+    related: related,
   );
 
   /// Inline error bubble shown in place of an assistant answer.
@@ -40,14 +43,18 @@ class ChatMessage extends Equatable {
   /// Plain text (user) or markdown (assistant).
   final String text;
 
-  /// Zettels cited as sources by the assistant, most relevant first.
-  final List<ZettelId> citedZettels;
+  /// Notes cited as sources by the assistant, most relevant first
+  /// (« Sources » chips under the bubble).
+  final List<AssistantSource> sources;
+
+  /// Notes retrieved as context but not cited (« Et peut-être »).
+  final List<AssistantSource> related;
 
   /// True when this bubble reports a failure instead of an answer.
   final bool isError;
 
   @override
-  List<Object?> get props => [role, text, citedZettels, isError];
+  List<Object?> get props => [role, text, sources, related, isError];
 }
 
 /// State of the RAG chat screen.

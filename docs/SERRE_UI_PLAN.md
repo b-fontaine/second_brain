@@ -195,12 +195,12 @@ profiler le repaint avant d'optimiser.
 0 ────────────────────────────────► 6 Entretien (M)
 ```
 
-| Jalon | Contenu | Résultat visible |
-|-------|---------|------------------|
-| A | 0 + 1 | App entièrement rethémée, nav 2+1, dial semer branché sur les flux actuels |
-| B | + 2 | Explorer fusionné (5 états), suppression notes/graph |
-| C | + 3 | Capture multi-format + pépinière |
-| D | + 4, 5, 6 | Note-carrefour, assistant sourcé, entretien |
+| Jalon | Contenu | Résultat visible | Statut |
+|-------|---------|------------------|--------|
+| A | 0 + 1 | App entièrement rethémée, nav 2+1, dial semer branché sur les flux actuels | ✅ Livré |
+| B | + 2 | Explorer fusionné (5 états), suppression notes/graph | ✅ Livré |
+| C | + 3 | Capture multi-format + pépinière | ✅ Livré |
+| D | + 4, 5, 6 | Note-carrefour, assistant sourcé, entretien | ✅ Livré (BDD + docs à jour) |
 
 ## Risques identifiés
 

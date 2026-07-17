@@ -16,6 +16,9 @@ import './step/i_tap_the_cited_source.dart';
 import './step/i_see_the_note_reading_panel_with_title.dart';
 import './step/the_local_transcription_engine_is_available.dart';
 import './step/i_ask_by_voice.dart';
+import './step/i_tap_button.dart';
+import './step/i_see_text.dart';
+import './step/the_inbox_contains_pending_item.dart';
 
 void main() {
   group('''Querying the knowledge base by prompt''', () {
@@ -46,6 +49,14 @@ void main() {
       await iOpenTheAssistantChat(tester);
       await iAskByVoice(tester, 'Que sais-je sur la mémoire de travail ?');
       await theAssistantAnswersUsingTheZettelkastenContent(tester);
+    });
+    testWidgets('''Semer la synthèse envoie la réponse en pépinière''',
+        (tester) async {
+      await bddSetUp(tester);
+      await theAssistantAnsweredCiting(tester, 'Mémoire de travail');
+      await iTapButton(tester, 'Semer cette synthèse');
+      await iSeeText(tester, 'Semé en pépinière — brouillon à valider.');
+      await theInboxContainsPendingItem(tester, 1);
     });
   });
 }

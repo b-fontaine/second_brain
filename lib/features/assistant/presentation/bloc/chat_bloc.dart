@@ -37,7 +37,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           ...history,
           ChatMessage.assistant(
             text: answer.text,
-            citedZettels: answer.citedZettels,
+            sources: answer.sources,
+            related: answer.related,
           ),
         ]),
       ),

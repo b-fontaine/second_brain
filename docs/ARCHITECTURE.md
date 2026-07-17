@@ -106,14 +106,43 @@ accepter) reste disponible depuis le sélecteur de sources du flux
 `CaptureBloc` ; le semis n'y fait plus appel : le découpage se décide au
 repiquage, dans la pépinière.
 
-## Flux de requête (RAG local)
+## Flux de requête (RAG local) et assistant sourcé
 
 ```
 question (texte | voix→STT)
   → recherche hybride dans l'index du vault (mots-clés + similarité)
   → top-k zettels injectés en contexte du LLM local
-  → réponse avec citations [[id]] cliquables
+  → AssistantAnswer{text, sources, related}
+      sources = notes réellement citées [[id]] dans la réponse
+                (repli : tout le contexte si aucune citation)
+      related = notes récupérées mais non citées (« Et peut-être »)
+  → chips « Sources » titrées + pastille de maturité → /note/:id
+  → « Semer cette synthèse » : la réponse redevient un brouillon de la
+    pépinière (CaptureIntake, source « Assistant »)
 ```
+
+Le degré (pastille de maturité des chips) est résolu par un unique
+`getAllZettels` par réponse, avec les mêmes règles d'arêtes que l'Explorer ;
+un coffre illisible masque simplement la pastille.
+
+## Note carrefour (lecture & édition)
+
+- **Lecture** (`ZettelReadingView`, partagée entre `/note/:id` et le panneau
+  latéral de l'Explorer) : mini-constellation 1-hop **statique**
+  (`ZettelMiniConstellation`, aucune animation), corps markdown Literata,
+  section « Racines — liens de la note » (entrants/sortants, pastilles de
+  maturité), section « Pollinisation — notes proches » (suggestions de
+  l'index RAG local, score « Proximité N % » sur la voie sémantique, rang
+  sinon) avec action « Tisser » : append `[[id|titre]]` + save + reload.
+- **Édition** (`ZettelEditPage`) : coloration markdown légère
+  (`MarkdownHighlightingController`), parcelles éditables, bandeau fleur
+  « X semble proche — tisser ? » pendant la frappe (debounce public
+  `pollinationDebounce` 800 ms, silencieux en échec, désactivable pour la
+  session).
+- Le moteur de suggestion est unique pour toutes les surfaces :
+  `SuggestDraftLinks` (texte libre) et `SuggestRelatedNotes` (autour d'une
+  note), adossés à `VaultRagIndex.topKScored` (feature graph, exception
+  cross-feature documentée).
 
 ## Synchronisation git
 
@@ -122,7 +151,26 @@ question (texte | voix→STT)
 - Si réseau disponible ⇒ push immédiat ; sinon file d'attente.
 - Watcher de connectivité ⇒ au retour du réseau : pull --rebase puis push.
 - Conflits : stratégie « le local gagne, copie de sauvegarde du distant »
-  (note dupliquée avec suffixe `-conflict`), jamais de perte de données.
+  (copies sous `conflicts/`), jamais de perte de données.
+  `SyncStatus.conflictCount` porte le nombre de conflits résolus par le
+  dernier pull (remis à zéro par un pull propre).
+
+### États sync globaux (shell)
+
+- `SyncShellScope` (posé par le router au-dessus d'`AdaptiveScaffold`)
+  fournit UN `SyncStatusCubit` partagé à toute la coquille : l'indicateur
+  d'AppBar, la pill « À jour / hors ligne » de l'Explorer et la pastille du
+  rail le réutilisent (repli getIt hors shell) — une seule souscription au
+  statut.
+- **Bannière hors-ligne** (`SyncOfflineBanner`, statique) : « n note(s)
+  attendent la pluie — synchronisation à la reconnexion » quand des commits
+  locaux attendent le réseau.
+- **Toast conflit** pédagogique sur front montant 0→n du compteur : « la
+  copie distante est conservée dans conflicts/ — vos notes n'ont rien
+  perdu » ; la carte ambre des réglages reprend le même message.
+- **Anti-doublon** : la pastille `SyncStatusDot` n'apparaît que dans le rail
+  étendu (≥ 840 dp) ; en compact, la pill sync de l'Explorer reste le seul
+  indicateur près de la barre de recherche.
 
 ## UI responsive/adaptive
 
@@ -164,5 +212,19 @@ documentée dans le code.
 - Implémentation principale : `flutter_gemma`.
 - La sélection d'implémentation par plateforme est faite dans la couche DI
   (voir docs/RESEARCH.md pour les fallbacks desktop).
-- Le modèle est téléchargé au premier lancement (écran de setup, barre de progression),
-  jamais embarqué dans le binaire.
+- Le modèle est téléchargé au premier lancement (écran des modèles) ou plus
+  tard depuis « Réglages → Modèles », jamais embarqué dans le binaire.
+
+## Onboarding & modèles locaux
+
+- **Setup** (`/setup`) : deux cartes — « Nouveau jardin » (coffre local
+  immédiat) et « Reprendre un dépôt git » (clone URL + jeton, conservé dans
+  le trousseau système, jamais affiché ni loggé). Les échecs s'affichent
+  inline dans la carte distante ; la connexion est vérifiée pendant le
+  clonage.
+- **Écran modèles** (`ModelsInstallView`, dernier pas d'onboarding et route
+  `/models`) : une carte par modèle (Reconnaissance vocale, Assistant local)
+  avec progression **déterminée** ; `ModelsInstallCubit` est un singleton
+  applicatif — « Continuer en arrière-plan » quitte l'écran sans
+  interrompre les téléchargements, « Plus tard » reporte tout (l'app
+  fonctionne sans modèle, en mode dégradé sans dictée ni assistant).

@@ -25,3 +25,11 @@ Feature: Offline-first with automatic git synchronization
     When I create a zettel titled {'Note en ligne'}
     Then the zettel is committed to the local repository
     And the pending commits are pushed to the remote
+
+  # Chantier 6 (plan Serre) : bannière statique du shell pendant l'attente
+  # hors ligne — « n note(s) attendent la pluie — synchronisation à la
+  # reconnexion ».
+  Scenario: Hors ligne la bannière annonce les notes qui attendent la pluie
+    Given the device is offline
+    When I create a zettel titled {'Note sous la bruine'}
+    Then the offline banner counts {1} note waiting for the rain

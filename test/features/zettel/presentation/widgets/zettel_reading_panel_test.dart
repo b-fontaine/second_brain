@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:second_brain/core/di/injection.dart';
+import 'package:second_brain/features/graph/domain/entities/related_note_suggestion.dart';
 import 'package:second_brain/features/zettel/domain/entities/zettel.dart';
 import 'package:second_brain/features/zettel/domain/entities/zettel_id.dart';
 import 'package:second_brain/features/zettel/presentation/bloc/zettel_detail/zettel_detail_cubit.dart';
@@ -33,6 +34,9 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(ZettelId.fromString('20260101120000'));
+    registerFallbackValue(
+      const RelatedNoteSuggestion(id: '20260101120000', title: 'fallback'),
+    );
   });
 
   setUp(() {
@@ -96,7 +100,7 @@ void main() {
       verify(() => cubit.load(noteId)).called(1);
       expect(find.text('Concept A'), findsOneWidget);
       expect(find.text('cognition'), findsOneWidget);
-      expect(find.text('Liens entrants'), findsOneWidget);
+      expect(find.text('Racines — liens de la note'), findsOneWidget);
     });
 
     testWidgets('renders a wikilink as a tappable link that navigates', (
@@ -143,7 +147,9 @@ void main() {
       expect(findLinkRecognizer(tester, 'Concept B'), isNotNull);
     });
 
-    testWidgets('navigates to a backlink when tapped', (tester) async {
+    testWidgets('navigates to a backlink from its Racines row', (
+      tester,
+    ) async {
       whenListen(
         cubit,
         const Stream<ZettelDetailState>.empty(),
@@ -151,21 +157,155 @@ void main() {
       );
       await pumpPanel(tester);
 
-      await tester.tap(find.text('Concept C'));
+      await tester.tap(find.byKey(const Key('root-link-20260303120000')));
       await tester.pumpAndSettle();
 
       expect(find.text('detail:20260303120000'), findsOneWidget);
     });
 
-    testWidgets('shows an empty-backlinks message', (tester) async {
+    testWidgets('lists the outgoing links as sortant rows', (tester) async {
       whenListen(
         cubit,
         const Stream<ZettelDetailState>.empty(),
-        initialState: ZettelDetailLoaded(zettel: note),
+        initialState: ZettelDetailLoaded(
+          zettel: note,
+          backlinks: [backlink],
+          linkTitles: const {'20260202120000': 'Concept B'},
+        ),
       );
       await pumpPanel(tester);
 
-      expect(find.text('Aucun lien entrant.'), findsOneWidget);
+      expect(
+        find.byKey(const Key('root-link-20260202120000')),
+        findsOneWidget,
+      );
+      expect(find.text('Lien sortant'), findsOneWidget);
+      expect(find.text('Lien entrant'), findsOneWidget);
+    });
+
+    testWidgets('shows a message when the note has no link at all', (
+      tester,
+    ) async {
+      final lonelyNote = Zettel(
+        id: noteId,
+        title: 'Concept A',
+        body: 'Une note sans lien.',
+        createdAt: DateTime(2026, 1, 1, 12),
+      );
+      whenListen(
+        cubit,
+        const Stream<ZettelDetailState>.empty(),
+        initialState: ZettelDetailLoaded(zettel: lonelyNote),
+      );
+      await pumpPanel(tester);
+
+      expect(find.text('Aucun lien pour l’instant.'), findsOneWidget);
+      expect(find.byKey(const Key('mini-constellation')), findsNothing);
+    });
+
+    testWidgets('shows the mini-constellation when the note has links', (
+      tester,
+    ) async {
+      whenListen(
+        cubit,
+        const Stream<ZettelDetailState>.empty(),
+        initialState: ZettelDetailLoaded(
+          zettel: note,
+          backlinks: [backlink],
+          linkTitles: const {'20260202120000': 'Concept B'},
+          degrees: const {
+            '20260101120000': 2,
+            '20260202120000': 1,
+            '20260303120000': 1,
+          },
+        ),
+      );
+      await pumpPanel(tester);
+
+      expect(find.byKey(const Key('mini-constellation')), findsOneWidget);
+    });
+
+    group('Pollinisation', () {
+      const scoredSuggestion = RelatedNoteSuggestion(
+        id: '20260404120000',
+        title: 'Concept D',
+        score: 0.87,
+      );
+      const rankedSuggestion = RelatedNoteSuggestion(
+        id: '20260505120000',
+        title: 'Concept E',
+      );
+
+      testWidgets('shows the suggestions with their score or rank', (
+        tester,
+      ) async {
+        whenListen(
+          cubit,
+          const Stream<ZettelDetailState>.empty(),
+          initialState: ZettelDetailLoaded(
+            zettel: note,
+            suggestions: const [scoredSuggestion, rankedSuggestion],
+          ),
+        );
+        await pumpPanel(tester);
+
+        expect(find.text('Pollinisation — notes proches'), findsOneWidget);
+        expect(find.text('Concept D'), findsOneWidget);
+        expect(find.text('Proximité 87 %'), findsOneWidget);
+        // Keyword fallback carries no comparable score: the rank is shown.
+        expect(find.text('Concept E'), findsOneWidget);
+        expect(find.text('Suggestion n° 2'), findsOneWidget);
+      });
+
+      testWidgets('hides the section without suggestions', (tester) async {
+        whenListen(
+          cubit,
+          const Stream<ZettelDetailState>.empty(),
+          initialState: ZettelDetailLoaded(zettel: note),
+        );
+        await pumpPanel(tester);
+
+        expect(find.text('Pollinisation — notes proches'), findsNothing);
+      });
+
+      testWidgets('« Tisser » weaves the suggestion through the cubit', (
+        tester,
+      ) async {
+        when(() => cubit.weave(any())).thenAnswer((_) async {});
+        whenListen(
+          cubit,
+          const Stream<ZettelDetailState>.empty(),
+          initialState: ZettelDetailLoaded(
+            zettel: note,
+            suggestions: const [scoredSuggestion],
+          ),
+        );
+        await pumpPanel(tester);
+
+        final weaveButton = find.byKey(const Key('weave-20260404120000'));
+        await tester.scrollUntilVisible(weaveButton, 80);
+        await tester.tap(weaveButton);
+        await tester.pump();
+
+        verify(() => cubit.weave(scoredSuggestion)).called(1);
+      });
+
+      testWidgets('tapping a suggestion opens its detail', (tester) async {
+        whenListen(
+          cubit,
+          const Stream<ZettelDetailState>.empty(),
+          initialState: ZettelDetailLoaded(
+            zettel: note,
+            suggestions: const [scoredSuggestion],
+          ),
+        );
+        await pumpPanel(tester);
+
+        await tester.tap(find.byKey(const Key('pollination-20260404120000')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('detail:20260404120000'), findsOneWidget);
+      });
     });
 
     testWidgets('blocks remote images in the markdown body', (tester) async {

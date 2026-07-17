@@ -1,17 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/theme/serre_tokens.dart';
+// Cross-feature imports — documented exception: the graph feature owns the
+// RAG-backed suggestion use cases; the editor reuses them for its « fleur »
+// banner so every Pollinisation surface shares the same engine.
+import '../../../graph/domain/entities/related_note_suggestion.dart';
+import '../../../graph/domain/usecases/suggest_draft_links.dart';
 import '../../domain/entities/inbox_item.dart';
 import '../../domain/entities/zettel.dart';
 import '../../domain/entities/zettel_id.dart';
 import '../bloc/zettel_edit/zettel_edit_bloc.dart';
+import '../utils/markdown_highlighting_controller.dart';
 import '../utils/zettel_text_formats.dart';
 import '../widgets/wikilink_picker_dialog.dart';
 
 /// Note editor (routes `/new`, `/note/:id/edit` and `/pepiniere/edit`):
-/// title, markdown body, tag chips and wikilink insertion.
+/// title, markdown body with light syntax coloring, tag chips (parcelles),
+/// wikilink insertion and a « fleur » banner suggesting a close note to
+/// weave while typing.
 ///
 /// With [draftItem] set (nursery « Modifier »), the form is prefilled from
 /// the pending capture and saving transplants it into a zettel (« Repiquer »
@@ -28,6 +39,10 @@ class ZettelEditPage extends StatelessWidget {
 
   /// Pending capture to edit then transplant (route `/pepiniere/edit`).
   final InboxItem? draftItem;
+
+  /// Delay between the last keystroke in the body and the RAG lookup
+  /// feeding the « fleur » banner. Public so tests pump it explicitly.
+  static const Duration pollinationDebounce = Duration(milliseconds: 800);
 
   @override
   Widget build(BuildContext context) {
@@ -65,10 +80,23 @@ class _ZettelEditView extends StatefulWidget {
 
 class _ZettelEditViewState extends State<_ZettelEditView> {
   final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _bodyController = TextEditingController();
+  final MarkdownHighlightingController _bodyController =
+      MarkdownHighlightingController();
   final TextEditingController _tagController = TextEditingController();
   final List<String> _tags = [];
   bool _initialized = false;
+
+  /// Id of the note being edited (excluded from suggestions); null when
+  /// creating or transplanting.
+  String? _editedId;
+
+  // « Fleur » banner state: suggestion fetching is debounced, silent on
+  // failure and disabled for the session with the banner's close button.
+  Timer? _pollinationTimer;
+  int _pollinationRequest = 0;
+  RelatedNoteSuggestion? _pollinationSuggestion;
+  bool _pollinationEnabled = true;
+  SuggestDraftLinks? _suggestDraftLinks;
 
   static const TextStyle _monospaceStyle = TextStyle(
     fontFamily: 'monospace',
@@ -77,6 +105,7 @@ class _ZettelEditViewState extends State<_ZettelEditView> {
 
   @override
   void dispose() {
+    _pollinationTimer?.cancel();
     _titleController.dispose();
     _bodyController.dispose();
     _tagController.dispose();
@@ -101,6 +130,7 @@ class _ZettelEditViewState extends State<_ZettelEditView> {
           );
         }
         final saving = state is ZettelEditSaving;
+        final suggestion = _pollinationSuggestion;
         return Scaffold(
           appBar: AppBar(
             title: Text(_pageTitle),
@@ -143,6 +173,14 @@ class _ZettelEditViewState extends State<_ZettelEditView> {
                         onAdded: _addTag,
                         onRemoved: _removeTag,
                       ),
+                      if (suggestion != null && _pollinationEnabled) ...[
+                        const SizedBox(height: 12),
+                        _PollinationBanner(
+                          title: suggestion.title,
+                          onWeave: _weaveSuggestion,
+                          onDismiss: _disablePollination,
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Expanded(
                         child: TextField(
@@ -155,6 +193,7 @@ class _ZettelEditViewState extends State<_ZettelEditView> {
                           keyboardType: TextInputType.multiline,
                           textAlignVertical: TextAlignVertical.top,
                           style: _monospaceStyle,
+                          onChanged: _onBodyChanged,
                           decoration: const InputDecoration(
                             labelText: 'Contenu',
                             alignLabelWithHint: true,
@@ -185,6 +224,7 @@ class _ZettelEditViewState extends State<_ZettelEditView> {
       final initial = state.initial;
       final draft = state.draft;
       if (initial != null) {
+        _editedId = initial.id.value;
         _titleController.text = initial.title;
         _bodyController.text = initial.body;
         _tags
@@ -249,7 +289,12 @@ class _ZettelEditViewState extends State<_ZettelEditView> {
       builder: (_) => const WikilinkPickerDialog(),
     );
     if (selected == null || !mounted) return;
-    final link = '[[${selected.id.value}|${selected.title}]]';
+    _insertIntoBody('[[${selected.id.value}|${selected.title}]]');
+  }
+
+  /// Inserts [link] at the cursor (replacing any selection), like the
+  /// wikilink picker does.
+  void _insertIntoBody(String link) {
     final text = _bodyController.text;
     final selection = _bodyController.selection;
     final start = selection.isValid ? selection.start : text.length;
@@ -257,6 +302,116 @@ class _ZettelEditViewState extends State<_ZettelEditView> {
     _bodyController.value = TextEditingValue(
       text: text.replaceRange(start, end, link),
       selection: TextSelection.collapsed(offset: start + link.length),
+    );
+  }
+
+  // --- « Fleur » banner (pollination while typing) --------------------------
+
+  void _onBodyChanged(String text) {
+    if (!_pollinationEnabled) return;
+    _pollinationTimer?.cancel();
+    _pollinationTimer = Timer(
+      ZettelEditPage.pollinationDebounce,
+      _fetchPollination,
+    );
+  }
+
+  Future<void> _fetchPollination() async {
+    final requestId = ++_pollinationRequest;
+    final body = _bodyController.text;
+    final query = '${_titleController.text}\n$body';
+    if (query.trim().isEmpty) {
+      if (mounted) setState(() => _pollinationSuggestion = null);
+      return;
+    }
+    final excluded = <String>{
+      ?_editedId,
+      for (final linked in Zettel.parseWikiLinks(body)) linked.value,
+    };
+    RelatedNoteSuggestion? suggestion;
+    try {
+      final suggest = _suggestDraftLinks ??= getIt<SuggestDraftLinks>();
+      final result = await suggest(
+        SuggestDraftLinksParams(text: query, excludedIds: excluded, count: 1),
+      );
+      suggestion = result.fold(
+        // Silent on failure: the banner is a hint, never an obstacle.
+        (_) => null,
+        (suggestions) => suggestions.isEmpty ? null : suggestions.first,
+      );
+    } catch (_) {
+      suggestion = null;
+    }
+    // Drop stale answers: another lookup was scheduled since.
+    if (!mounted || requestId != _pollinationRequest) return;
+    setState(() => _pollinationSuggestion = suggestion);
+  }
+
+  void _weaveSuggestion() {
+    final suggestion = _pollinationSuggestion;
+    if (suggestion == null) return;
+    _insertIntoBody('[[${suggestion.id}|${suggestion.title}]]');
+    setState(() => _pollinationSuggestion = null);
+  }
+
+  void _disablePollination() {
+    _pollinationTimer?.cancel();
+    setState(() {
+      _pollinationEnabled = false;
+      _pollinationSuggestion = null;
+    });
+  }
+}
+
+/// « Fleur » banner: a close note was found while typing — weave it?
+class _PollinationBanner extends StatelessWidget {
+  const _PollinationBanner({
+    required this.title,
+    required this.onWeave,
+    required this.onDismiss,
+  });
+
+  final String title;
+  final VoidCallback onWeave;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fleur =
+        theme.extension<SerreTokens>()?.fleur ?? theme.colorScheme.tertiary;
+    return Material(
+      key: const Key('pollination-banner'),
+      color: fleur.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Row(
+          children: [
+            Icon(Icons.local_florist_outlined, size: 18, color: fleur),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '« $title » semble proche — tisser ?',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+            TextButton(
+              key: const Key('pollination-weave-button'),
+              onPressed: onWeave,
+              child: const Text('Tisser'),
+            ),
+            IconButton(
+              key: const Key('pollination-dismiss-button'),
+              tooltip: 'Masquer les suggestions pour cette édition',
+              icon: const Icon(Icons.close, size: 18),
+              onPressed: onDismiss,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

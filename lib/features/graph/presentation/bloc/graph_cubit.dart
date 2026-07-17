@@ -84,13 +84,13 @@ class GraphCubit extends Cubit<GraphState> {
     if (isClosed) return;
     final current = state;
     if (current is! GraphLoaded || current.selectedId != id) return;
-    result.fold((_) {}, (ids) {
+    result.fold((_) {}, (suggestions) {
       final live = {for (final node in current.nodes) node.id};
       emit(
         current.copyWith(
           suggestedIds: {
-            for (final suggested in ids)
-              if (live.contains(suggested)) suggested,
+            for (final suggestion in suggestions)
+              if (live.contains(suggestion.id)) suggestion.id,
           },
         ),
       );

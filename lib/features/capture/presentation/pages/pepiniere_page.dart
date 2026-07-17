@@ -133,6 +133,7 @@ class _SeedlingCard extends StatelessWidget {
     CaptureType.screenshot => 'Image',
     CaptureType.dictation => 'Dictée',
     CaptureType.file => 'Fichier',
+    CaptureType.assistant => 'Assistant',
   };
 
   IconData get _sourceIcon => switch (item.type) {
@@ -141,6 +142,7 @@ class _SeedlingCard extends StatelessWidget {
     CaptureType.screenshot => Icons.image_outlined,
     CaptureType.dictation => Icons.mic_none,
     CaptureType.file => Icons.description_outlined,
+    CaptureType.assistant => Icons.psychology_alt_outlined,
   };
 
   /// Deterministic French timestamp (no locale data needed in tests).

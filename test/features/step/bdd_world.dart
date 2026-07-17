@@ -31,6 +31,7 @@ import 'package:second_brain/features/assistant/domain/services/local_ai_service
 import 'package:second_brain/features/assistant/presentation/bloc/chat_bloc.dart';
 import 'package:second_brain/features/assistant/presentation/bloc/dictation_cubit.dart';
 import 'package:second_brain/features/assistant/presentation/bloc/model_status_cubit.dart';
+import 'package:second_brain/features/assistant/presentation/bloc/sow_synthesis_cubit.dart';
 import 'package:second_brain/features/capture/domain/services/capture_intake.dart';
 import 'package:second_brain/features/capture/domain/services/clipboard_service.dart';
 import 'package:second_brain/features/capture/domain/services/ocr_service.dart';
@@ -48,6 +49,7 @@ import 'package:second_brain/features/capture/presentation/bloc/pepiniere_cubit.
 import 'package:second_brain/features/capture/presentation/bloc/seed_intake_cubit.dart';
 import 'package:second_brain/features/capture/presentation/pages/seed_preview_page.dart';
 import 'package:second_brain/features/explorer/presentation/bloc/seedling_count_cubit.dart';
+import 'package:second_brain/features/graph/domain/usecases/suggest_draft_links.dart';
 import 'package:second_brain/features/graph/domain/usecases/suggest_related_notes.dart';
 import 'package:second_brain/features/graph/domain/usecases/watch_vault.dart';
 import 'package:second_brain/features/graph/presentation/bloc/graph_cubit.dart';
@@ -58,6 +60,7 @@ import 'package:second_brain/features/setup/domain/repositories/setup_repository
 import 'package:second_brain/features/setup/domain/usecases/configure_local_only.dart';
 import 'package:second_brain/features/setup/domain/usecases/configure_with_remote.dart';
 import 'package:second_brain/features/setup/domain/usecases/get_vault_config.dart';
+import 'package:second_brain/features/setup/presentation/bloc/models_install_cubit.dart';
 import 'package:second_brain/features/setup/presentation/bloc/setup_bloc.dart';
 import 'package:second_brain/features/sync/application/sync_orchestrator.dart';
 import 'package:second_brain/features/sync/data/services/pull_change_notifier.dart';
@@ -370,6 +373,9 @@ void _registerDependencies() {
         getIt<GetZettelById>(),
         getIt<GetBacklinks>(),
         getIt<DeleteZettel>(),
+        getIt<GetAllZettels>(),
+        getIt<UpdateZettel>(),
+        getIt<SuggestRelatedNotes>(),
       ),
     )
     ..registerFactory<ZettelEditBloc>(
@@ -384,10 +390,14 @@ void _registerDependencies() {
   // Graph.
   getIt
     ..registerFactory<WatchVault>(() => WatchVault(getIt<ZettelRepository>()))
+    ..registerFactory<SuggestDraftLinks>(
+      () =>
+          SuggestDraftLinks(getIt<ZettelRepository>(), getIt<VaultRagIndex>()),
+    )
     ..registerFactory<SuggestRelatedNotes>(
       () => SuggestRelatedNotes(
         getIt<ZettelRepository>(),
-        getIt<VaultRagIndex>(),
+        getIt<SuggestDraftLinks>(),
       ),
     )
     ..registerFactory<GraphCubit>(
@@ -430,6 +440,10 @@ void _registerDependencies() {
     )
     ..registerFactory<DictationCubit>(
       () => DictationCubit(getIt<TranscriptionService>()),
+    )
+    // « Semer cette synthèse » : real seeding intake over the fakes.
+    ..registerFactory<SowSynthesisCubit>(
+      () => SowSynthesisCubit(getIt<CaptureIntake>()),
     );
 
   // Capture: fake extraction engines, real use cases and bloc.
@@ -543,6 +557,7 @@ void _registerDependencies() {
         getIt<UpdateGitToken>(),
         getIt<ForceSynchronize>(),
         getIt<GitSyncRepository>(),
+        getIt<GetAllZettels>(),
       ),
     )
     ..registerFactory<SyncStatusCubit>(
@@ -592,5 +607,18 @@ void _registerDependencies() {
     ..registerFactory<SetupBloc>(
       () =>
           SetupBloc(getIt<ConfigureWithRemote>(), getIt<ConfigureLocalOnly>()),
+    )
+    // Models screen (onboarding final step / Réglages → Modèles). Lazy
+    // singleton like production so downloads survive navigation; the ABI
+    // guard is forced to "supported" for determinism across test hosts.
+    // Dispose never awaits the close future (FakeAsync-zone deadlock trap).
+    ..registerLazySingleton<ModelsInstallCubit>(
+      () => ModelsInstallCubit(
+        getIt<TranscriptionService>(),
+        getIt<EnsureSttModel>(),
+        getIt<AssistantRepository>(),
+        isAssistantSupported: () => true,
+      ),
+      dispose: (cubit) => unawaited(cubit.close()),
     );
 }

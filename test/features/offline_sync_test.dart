@@ -14,6 +14,7 @@ import './step/the_device_comes_back_online.dart';
 import './step/the_pending_commits_are_pushed_to_the_remote.dart';
 import './step/the_sync_status_shows_up_to_date.dart';
 import './step/the_device_is_online.dart';
+import './step/the_offline_banner_counts_note_waiting_for_the_rain.dart';
 
 void main() {
   group('''Offline-first with automatic git synchronization''', () {
@@ -44,6 +45,14 @@ void main() {
       await iCreateAZettelTitled(tester, 'Note en ligne');
       await theZettelIsCommittedToTheLocalRepository(tester);
       await thePendingCommitsArePushedToTheRemote(tester);
+    });
+    testWidgets(
+        '''Hors ligne la bannière annonce les notes qui attendent la pluie''',
+        (tester) async {
+      await bddSetUp(tester);
+      await theDeviceIsOffline(tester);
+      await iCreateAZettelTitled(tester, 'Note sous la bruine');
+      await theOfflineBannerCountsNoteWaitingForTheRain(tester, 1);
     });
   });
 }

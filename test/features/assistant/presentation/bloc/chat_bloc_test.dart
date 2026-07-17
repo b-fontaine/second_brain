@@ -21,10 +21,20 @@ void main() {
 
   group('ChatBloc', () {
     const question = 'Que sais-je sur la mémoire de travail ?';
-    final citedId = ZettelId.fromString('20260101120000');
+    final citedSource = AssistantSource(
+      id: ZettelId.fromString('20260101120000'),
+      title: 'Mémoire de travail',
+      linkCount: 4,
+    );
+    final relatedSource = AssistantSource(
+      id: ZettelId.fromString('20260102120000'),
+      title: 'Charge cognitive',
+      linkCount: 1,
+    );
     final answer = AssistantAnswer(
       text: 'La mémoire de travail est limitée [[20260101120000]].',
-      citedZettels: [citedId],
+      sources: [citedSource],
+      related: [relatedSource],
     );
 
     test('initial state is an empty idle conversation', () {
@@ -32,7 +42,8 @@ void main() {
     });
 
     blocTest<ChatBloc, ChatState>(
-      'emits generating then idle with the assistant answer on success',
+      'emits generating then idle with the answer, its cited sources and '
+      'its retrieved-but-not-cited related notes',
       setUp: () {
         when(
           () => repository.answerQuestion(question),
@@ -44,11 +55,21 @@ void main() {
         ChatGenerating([ChatMessage.user(question)]),
         ChatIdle([
           ChatMessage.user(question),
-          ChatMessage.assistant(text: answer.text, citedZettels: [citedId]),
+          ChatMessage.assistant(
+            text: answer.text,
+            sources: [citedSource],
+            related: [relatedSource],
+          ),
         ]),
       ],
-      verify: (_) {
+      verify: (bloc) {
         verify(() => repository.answerQuestion(question)).called(1);
+        // The RAG documents are exposed on the state, split between the
+        // cited sources and the related (« Et peut-être ») notes.
+        final message = bloc.state.messages.last;
+        expect(message.sources.single.title, 'Mémoire de travail');
+        expect(message.sources.single.linkCount, 4);
+        expect(message.related.single.title, 'Charge cognitive');
       },
     );
 
@@ -93,7 +114,11 @@ void main() {
           ChatMessage.user('Bonjour'),
           ChatMessage.assistant(text: 'Bonjour !'),
           ChatMessage.user(question),
-          ChatMessage.assistant(text: answer.text, citedZettels: [citedId]),
+          ChatMessage.assistant(
+            text: answer.text,
+            sources: [citedSource],
+            related: [relatedSource],
+          ),
         ]),
       ],
     );

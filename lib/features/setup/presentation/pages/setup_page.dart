@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../bloc/setup_bloc.dart';
-import '../widgets/model_download_step.dart';
+import '../widgets/models_install_view.dart';
 import '../widgets/setup_form.dart';
 
 /// First-run onboarding page, mounted on the `/setup` route.
@@ -37,7 +37,7 @@ class SetupView extends StatelessWidget {
                   // column on tablet/desktop.
                   constraints: const BoxConstraints(maxWidth: 480),
                   child: state is SetupDone
-                      ? const ModelDownloadStep()
+                      ? const ModelsInstallView(showSetupActions: true)
                       : const SetupForm(),
                 ),
               ),

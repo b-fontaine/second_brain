@@ -46,7 +46,18 @@ class VaultRagIndex {
   /// Returns the [k] most relevant zettels for [query], best first, as
   /// `(id, excerpt)` pairs. Uses semantic search when embeddings are ready,
   /// keyword scoring otherwise. Never throws: degraded results over errors.
-  Future<List<(ZettelId, String)>> topK(String query, {int k = 5}) async {
+  Future<List<(ZettelId, String)>> topK(String query, {int k = 5}) async => [
+    for (final (id, excerpt, _) in await topKScored(query, k: k)) (id, excerpt),
+  ];
+
+  /// Like [topK] but keeps the relevance score: the cosine similarity
+  /// normalized to `[0, 1]` on the semantic path, or null on the keyword
+  /// path (raw term-frequency scores are unbounded and not comparable
+  /// across queries, so only the rank is meaningful there).
+  Future<List<(ZettelId, String, double?)>> topKScored(
+    String query, {
+    int k = 5,
+  }) async {
     await _ensureIndexed();
     final queryTerms = tokenize(query);
     if (queryTerms.isEmpty && query.trim().isEmpty) return const [];
@@ -55,19 +66,26 @@ class VaultRagIndex {
     if (await _gatewayAvailable()) {
       try {
         final hits = await _embeddingsGateway.search(query, k);
-        final results = <(ZettelId, String)>[];
+        final results = <(ZettelId, String, double?)>[];
         for (final hit in hits) {
           // Skip stale hits (zettel deleted since it was embedded).
           final document = _documents[hit.id];
           if (document == null) continue;
-          results.add((document.id, _excerpt(document, queryTerms)));
+          results.add((
+            document.id,
+            _excerpt(document, queryTerms),
+            hit.similarity.clamp(0.0, 1.0).toDouble(),
+          ));
         }
         if (results.isNotEmpty) return results;
       } catch (_) {
         // Semantic search failed — degrade to keyword scoring below.
       }
     }
-    return _keywordTopK(queryTerms, k);
+    return [
+      for (final (id, excerpt) in _keywordTopK(queryTerms, k))
+        (id, excerpt, null),
+    ];
   }
 
   /// Forces a full (re)index pass. Normally not needed: indexing is lazy on

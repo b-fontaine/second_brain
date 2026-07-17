@@ -47,6 +47,11 @@ class FakeGitSyncRepository implements GitSyncRepository {
   /// When non-null, every [synchronize] fails with this failure.
   Failure? synchronizeFailure;
 
+  /// Number of conflicts the next successful [synchronize] "resolves"
+  /// local-wins (surfaces as `SyncStatus.conflictCount`, like a real pull
+  /// that saved remote copies under `conflicts/`). Consumed once.
+  int conflictsOnNextSynchronize = 0;
+
   /// In-memory stand-in for the secure storage `git_token` entry.
   String? storedToken;
 
@@ -135,9 +140,12 @@ class FakeGitSyncRepository implements GitSyncRepository {
     }
     pushedCommits += pendingCommits;
     pendingCommits = 0;
+    final conflicts = conflictsOnNextSynchronize;
+    conflictsOnNextSynchronize = 0;
     setStatus(
       SyncStatus(
         state: remoteConfigured ? SyncState.upToDate : SyncState.localOnly,
+        conflictCount: conflicts,
       ),
     );
     return const Right(unit);

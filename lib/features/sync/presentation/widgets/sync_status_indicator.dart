@@ -14,10 +14,18 @@ class SyncStatusIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<SyncStatusCubit>()..start(),
-      child: const _SyncStatusButton(),
-    );
+    // Reuse the shell's shared cubit (SyncShellScope) when present so the
+    // status streams carry a single subscription; self-provide one only
+    // for standalone usages outside the shell.
+    try {
+      context.read<SyncStatusCubit>();
+      return const _SyncStatusButton();
+    } on ProviderNotFoundException {
+      return BlocProvider(
+        create: (_) => getIt<SyncStatusCubit>()..start(),
+        child: const _SyncStatusButton(),
+      );
+    }
   }
 }
 

@@ -13,6 +13,8 @@ import 'package:second_brain/features/sync/domain/usecases/get_sync_status.dart'
 import 'package:second_brain/features/sync/domain/usecases/test_remote_connection.dart';
 import 'package:second_brain/features/sync/domain/usecases/update_git_token.dart';
 import 'package:second_brain/features/sync/presentation/bloc/settings_cubit.dart';
+import 'package:second_brain/features/zettel/domain/entities/zettel.dart';
+import 'package:second_brain/features/zettel/domain/usecases/get_all_zettels.dart';
 
 class MockGetVaultConfig extends Mock implements GetVaultConfig {}
 
@@ -25,6 +27,8 @@ class MockUpdateGitToken extends Mock implements UpdateGitToken {}
 class MockForceSynchronize extends Mock implements ForceSynchronize {}
 
 class MockGitSyncRepository extends Mock implements GitSyncRepository {}
+
+class MockGetAllZettels extends Mock implements GetAllZettels {}
 
 void main() {
   const remoteUrl = 'https://github.com/user/notes.git';
@@ -41,6 +45,7 @@ void main() {
   late MockUpdateGitToken updateGitToken;
   late MockForceSynchronize forceSynchronize;
   late MockGitSyncRepository repository;
+  late MockGetAllZettels getAllZettels;
 
   setUpAll(() {
     registerFallbackValue(const NoParams());
@@ -55,6 +60,7 @@ void main() {
     updateGitToken = MockUpdateGitToken();
     forceSynchronize = MockForceSynchronize();
     repository = MockGitSyncRepository();
+    getAllZettels = MockGetAllZettels();
 
     when(() => getVaultConfig(any())).thenAnswer(
       (_) async =>
@@ -73,6 +79,9 @@ void main() {
     when(
       () => forceSynchronize(any()),
     ).thenAnswer((_) async => const Right(unit));
+    when(
+      () => getAllZettels(any()),
+    ).thenAnswer((_) async => const Right(<Zettel>[]));
   });
 
   SettingsCubit buildCubit() => SettingsCubit(
@@ -82,6 +91,7 @@ void main() {
     updateGitToken,
     forceSynchronize,
     repository,
+    getAllZettels,
   );
 
   group('load', () {
@@ -100,6 +110,29 @@ void main() {
           remoteUrl: remoteUrl,
           hasStoredToken: true,
           syncStatus: upToDate,
+          vaultPath: '/vault',
+          noteCount: 0,
+        ),
+      ],
+    );
+
+    blocTest<SettingsCubit, SettingsState>(
+      'exposes the vault path and note count for the garden card, keeping '
+      'the count null when the vault cannot be read',
+      build: buildCubit,
+      setUp: () {
+        when(() => getAllZettels(any())).thenAnswer(
+          (_) async => const Left(VaultFailure('coffre illisible')),
+        );
+      },
+      act: (cubit) => cubit.load(),
+      expect: () => const [
+        SettingsLoading(),
+        SettingsLoaded(
+          remoteUrl: remoteUrl,
+          hasStoredToken: false,
+          syncStatus: upToDate,
+          vaultPath: '/vault',
         ),
       ],
     );
@@ -119,6 +152,8 @@ void main() {
           remoteUrl: null,
           hasStoredToken: false,
           syncStatus: upToDate,
+          vaultPath: '/vault',
+          noteCount: 0,
         ),
       ],
     );
