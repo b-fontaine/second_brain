@@ -218,6 +218,9 @@ void main() {
       when(
         () => assistantRepository.isReady(),
       ).thenAnswer((_) async => const Right(false));
+      when(
+        () => assistantRepository.getSelectedModel(),
+      ).thenAnswer((_) async => const Right(null));
       // The SetupDone branch resolves the app-lifetime models cubit
       // through getIt, exactly like production.
       getIt.registerLazySingleton<ModelsInstallCubit>(
